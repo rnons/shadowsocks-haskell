@@ -3,7 +3,9 @@ module Shadowsocks.Encrypt where
 import Crypto.Hash.MD5 (hash)
 import Data.Binary.Get (runGet, getWord64le)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import Data.Monoid ((<>))
 import Data.Word (Word8, Word64)
 
 getTable :: ByteString -> [Word8]
@@ -26,3 +28,17 @@ cmpsort (x:xs) cmp =
     let left = [a | a <- xs, cmp a x]
         right = [a | a <- xs, not $ cmp a x]
      in cmpsort left cmp ++ [x] ++ cmpsort right cmp
+
+evpBytesToKey :: ByteString -> Int -> Int -> (ByteString, ByteString)
+evpBytesToKey password keyLen ivLen = do
+    let ms' = S.concat $ ms 0 []
+        key = S.take keyLen ms'
+        iv  = S.take ivLen $ S.drop keyLen ms'
+     in (key, iv)
+  where
+    ms :: Int -> [ByteString] -> [ByteString]
+    ms 0 _ = ms 1 [hash password]
+    ms i m
+        | S.length (S.concat m) < keyLen + ivLen =
+            ms (i+1) (m ++ [hash (last m <> password)])
+        | otherwise = m
