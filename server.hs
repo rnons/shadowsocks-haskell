@@ -2,6 +2,7 @@
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
+import qualified Control.Exception as E
 import Control.Monad (void)
 import Data.Char (ord)
 import Data.Binary.Get (runGet, getWord16be)
@@ -36,31 +37,33 @@ sockHandler :: Socket
             -> (ByteString -> IO ByteString)
             -> IO ()
 sockHandler sock encrypt decrypt = do
-    (conn, _) <- accept sock
-    addrType <- recv conn 1 >>= decrypt
+    (do
+        (conn, _) <- accept sock
+        addrType <- recv conn 1 >>= decrypt
 
-    addr <- if ord (head $ C.unpack addrType) == 1
-        then do
-            addr_ip <- recv conn 4 >>= decrypt
-            inet_addr (C.unpack addr_ip) >>= inet_ntoa
-        else do
-            addr_len <- recv conn 1 >>= decrypt
-            addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
-            return $ C.unpack addr
+        addr <- if ord (head $ C.unpack addrType) == 1
+            then do
+                addr_ip <- recv conn 4 >>= decrypt
+                inet_addr (C.unpack addr_ip) >>= inet_ntoa
+            else do
+                addr_len <- recv conn 1 >>= decrypt
+                addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
+                return $ C.unpack addr
 
-    addr_port <- recv conn 2 >>= decrypt
-    let port = runGet getWord16be $ L.fromStrict addr_port
+        addr_port <- recv conn 2 >>= decrypt
+        let port = runGet getWord16be $ L.fromStrict addr_port
 
-    remoteAddr <- fmap head $ 
-        getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                    (Just addr)
-                    (Just $ show port)
-    remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
-    connect remote (addrAddress remoteAddr)
-    putStrLn $ "connecting " <> addr <> ":" <> show port
-    let localwait = unsafePerformIO newEmptyMVar
-        remotewait = unsafePerformIO newEmptyMVar
-    forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait
+        remoteAddr <- fmap head $ 
+            getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                        (Just addr)
+                        (Just $ show port)
+        remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
+        connect remote (addrAddress remoteAddr)
+        putStrLn $ "connecting " <> addr <> ":" <> show port
+        let localwait = unsafePerformIO newEmptyMVar
+            remotewait = unsafePerformIO newEmptyMVar
+        void $ forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait)
+        `E.catch` (\e -> void $ print (e :: E.SomeException))
     sockHandler sock encrypt decrypt
 
 getServer :: IO AddrInfo
