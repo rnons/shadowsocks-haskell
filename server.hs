@@ -11,6 +11,8 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
 import Data.Monoid ((<>))
+import GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
+import GHC.IO.Handle.FD (stdout)
 import Network.Socket hiding (recv)
 import Network.Socket.ByteString (recv, sendAll)
 -- import System.Environment (getArgs)
@@ -27,7 +29,8 @@ main = withSocketsDo $ do
     sock <- socket (addrFamily serveraddr) Stream defaultProtocol
     bindSocket sock (addrAddress serveraddr)
     listen sock 1
-    putStrLn "starting server at 8888"
+    hSetBuffering stdout NoBuffering
+    C.hPutStrLn stdout "starting server at 8888"
     (encrypt, decrypt) <- getTableEncDec ""
     sockHandler sock encrypt decrypt
     close sock
