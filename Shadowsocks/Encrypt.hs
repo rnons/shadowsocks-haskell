@@ -9,6 +9,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as L
 import Data.IntMap.Strict (fromList, (!))
+import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import Data.Monoid ((<>))
 import Data.Word (Word8, Word64)
@@ -28,16 +29,9 @@ getTable key = do
 
 sortTable :: Word64 -> Word64 -> [Word64] -> [Word64]
 sortTable 1024 _ table = table
-sortTable i a table = sortTable (i+1) a $ cmpsort table cmp
+sortTable i a table = sortTable (i+1) a $ sortBy cmp table
   where
-    cmp x y = (a `mod` (x + i)) < (a `mod` (y + i)) 
-
-cmpsort :: [Word64] -> (Word64 -> Word64 -> Bool) -> [Word64]
-cmpsort [] _ = []
-cmpsort (x:xs) cmp = 
-    let left = [a | a <- xs, cmp a x]
-        right = [a | a <- xs, not $ cmp a x]
-     in cmpsort left cmp ++ [x] ++ cmpsort right cmp
+    cmp x y = compare (a `mod` (x + i)) (a `mod` (y + i))
 
 evpBytesToKey :: ByteString -> Int -> Int -> (ByteString, ByteString)
 evpBytesToKey password keyLen ivLen =
@@ -64,32 +58,32 @@ cipherMVar = unsafePerformIO newEmptyMVar
 decipherMVar :: MVar (ByteString -> IO ByteString)
 decipherMVar = unsafePerformIO newEmptyMVar
 
-getEncDec :: ByteString 
+getEncDec :: ByteString
           -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
 getEncDec iv = do
 
-    random_iv <- if S.null iv then withOpenSSL $ randBytes 32 
+    random_iv <- if S.null iv then withOpenSSL $ randBytes 32
                               else return iv
     let cipher_iv = S.take 8 random_iv
 
     myCipher <- getCipher random_iv Encrypt
-    let 
+    let
         encrypt "" = return ""
         encrypt buf = do
             empty <- isEmptyMVar cipherMVar
-            if empty 
+            if empty
                 then do
                     putMVar cipherMVar ()
                     ciphered <- withOpenSSL $ myCipher buf
-                    print cipher_iv 
-                    print ciphered 
+                    print cipher_iv
+                    print ciphered
                     return $ cipher_iv <> ciphered
                 else
                     withOpenSSL (myCipher buf)
         decrypt "" = return ""
         decrypt buf = do
             empty <- isEmptyMVar decipherMVar
-            if empty 
+            if empty
                 then do
                     print $ S.length buf
                     let decipher_iv = S.take 8 buf
