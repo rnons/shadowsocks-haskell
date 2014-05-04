@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, forkFinally)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
-import Control.Monad (void)
+import Control.Monad (void, forever)
 import Data.Char (ord)
 import Data.Binary.Get (runGet, getWord16be)
 import Data.Binary.Put (runPut, putWord16be)
@@ -32,14 +32,15 @@ main = withSocketsDo $ do
     hSetBuffering stdout NoBuffering
     C.hPutStrLn stdout "starting server at 7777"
     (encrypt, decrypt) <- getTableEncDec ""
-    sockHandler sock encrypt decrypt
-    close sock
+    mvar <- newEmptyMVar
+    forkFinally (sockHandler sock encrypt decrypt) (\_ -> putMVar mvar ())
+    takeMVar mvar
 
 sockHandler :: Socket
             -> (ByteString -> IO ByteString)
             -> (ByteString -> IO ByteString)
             -> IO ()
-sockHandler sock encrypt decrypt = do
+sockHandler sock encrypt decrypt = forever $
     (do
         (conn, _) <- accept sock
         recv conn 262
@@ -73,7 +74,6 @@ sockHandler sock encrypt decrypt = do
         remotewait <- newEmptyMVar
         void $ forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
-    sockHandler sock encrypt decrypt
 
 getServer :: IO AddrInfo
 getServer =

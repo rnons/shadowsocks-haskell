@@ -3,13 +3,13 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar,  putMVar, takeMVar)
 import qualified Data.ByteString as S
 import Data.Word (Word8)
-import Test.HUnit
 import Data.IntMap.Strict (fromList, elems)
 import GHC.IO.Handle (hClose)
-import System.Process (createProcess, CreateProcess(std_out), shell, StdStream(CreatePipe), rawSystem)
-
+import System.Process (createProcess, CreateProcess(std_out), shell, StdStream(CreatePipe), rawSystem, interruptProcessGroupOf)
 import System.Exit (ExitCode(ExitSuccess))
-import Shadowsocks.Encrypt
+import Test.HUnit
+
+import Shadowsocks.Encrypt (getTable)
 
 
 target1 :: [[Word8]]
@@ -67,9 +67,9 @@ main :: IO ()
 main = do
     runTestTT tests
 
-    (_, Just p1_out, _, _) <-
+    (_, Just p1_out, _, p1_hdl) <-
         createProcess (shell "runhaskell server.hs") { std_out = CreatePipe }
-    (_, Just p2_out, _, _) <-
+    (_, Just p2_out, _, p2_hdl) <-
         createProcess (shell "runhaskell local.hs") { std_out = CreatePipe }
 
     wait1 <- newEmptyMVar
@@ -89,6 +89,8 @@ main = do
                                       else "test failed"
     hClose p1_out
     hClose p2_out
+    interruptProcessGroupOf p1_hdl
+    interruptProcessGroupOf p2_hdl
 
   where
     toDecrypt t = elems $ fromList $ zip (map fromIntegral t) [0..255]
