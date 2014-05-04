@@ -8,7 +8,6 @@ import Data.IntMap.Strict (fromList, elems)
 import GHC.IO.Handle (hClose)
 import System.Process (createProcess, CreateProcess(std_out), shell, StdStream(CreatePipe), rawSystem)
 
-import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (ExitCode(ExitSuccess))
 import Shadowsocks.Encrypt
 
@@ -73,8 +72,8 @@ main = do
     (_, Just p2_out, _, _) <-
         createProcess (shell "runhaskell local.hs") { std_out = CreatePipe }
 
-    let wait1 = unsafePerformIO newEmptyMVar
-        wait2 = unsafePerformIO newEmptyMVar
+    wait1 <- newEmptyMVar
+    wait2 <- newEmptyMVar
     forkIO $ readOut p1_out wait1
     forkIO $ readOut p2_out wait2
     takeMVar wait1

@@ -17,7 +17,6 @@ import GHC.IO.Handle.FD (stdout)
 import Network.Socket hiding (recv)
 import Network.Socket.ByteString (recv, sendAll)
 -- import System.Environment (getArgs)
-import System.IO.Unsafe (unsafePerformIO)
 
 import Shadowsocks.Encrypt (getTableEncDec, getEncDec)
 
@@ -70,8 +69,8 @@ sockHandler sock encrypt decrypt = do
         connect remote (addrAddress serverAddr)
         encrypt addr_to_send >>= sendAll remote
         C.putStrLn $ "connecting " <> addr <> ":" <> C.pack (show port)
-        let localwait = unsafePerformIO newEmptyMVar
-            remotewait = unsafePerformIO newEmptyMVar
+        localwait <- newEmptyMVar
+        remotewait <- newEmptyMVar
         void $ forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
     sockHandler sock encrypt decrypt
