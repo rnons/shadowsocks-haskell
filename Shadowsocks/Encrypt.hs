@@ -100,13 +100,14 @@ getEncDec iv = do
 
 getTableEncDec :: ByteString
           -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
-getTableEncDec _ = do
-    let table = getTable "abc"
-        encryptTable = fromList $ zip [0..255] table
-        decryptTable = fromList $ zip (map fromIntegral table) [0..255]
-        encrypt :: ByteString -> IO ByteString
-        encrypt buf = return $ S.pack $ map (\b -> encryptTable ! fromIntegral b) $ S.unpack buf
-        decrypt :: ByteString -> IO ByteString
-        decrypt buf = return $ S.pack $ map (\b -> decryptTable ! fromIntegral b) $ S.unpack buf
-
-    return (encrypt, decrypt)
+getTableEncDec key = return (encrypt, decrypt)
+  where
+    table = getTable key
+    encryptTable = fromList $ zip [0..255] table
+    decryptTable = fromList $ zip (map fromIntegral table) [0..255]
+    encrypt :: ByteString -> IO ByteString
+    encrypt buf = return $
+        S.pack $ map (\b -> encryptTable ! fromIntegral b) $ S.unpack buf
+    decrypt :: ByteString -> IO ByteString
+    decrypt buf = return $
+        S.pack $ map (\b -> decryptTable ! fromIntegral b) $ S.unpack buf

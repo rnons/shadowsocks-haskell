@@ -11,6 +11,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
 import Data.Monoid ((<>))
+import Data.Maybe (fromJust)
 import GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
 import GHC.IO.Handle.FD (stdout)
 import Network.Socket hiding (recv)
@@ -18,19 +19,24 @@ import Network.Socket.ByteString (recv, sendAll)
 -- import System.Environment (getArgs)
 
 import Shadowsocks.Encrypt (getTableEncDec, getEncDec)
+import Shadowsocks.Util (SSConfig(..), readConfig)
 
 main :: IO ()
 main = withSocketsDo $ do
-    addrinfos <- getAddrInfo
-                 (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                 Nothing (Just "8888")
-    let serveraddr = head addrinfos
-    sock <- socket (addrFamily serveraddr) Stream defaultProtocol
-    bindSocket sock (addrAddress serveraddr)
-    listen sock 1
+    mconfig <- readConfig "config.json"
+    addrinfos <- getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                             Nothing 
+                             (fmap (show . server_port) mconfig)
+    let config = fromJust mconfig
+        sockAddr = head addrinfos
+    sock <- socket (addrFamily sockAddr) Stream defaultProtocol
+    bindSocket sock (addrAddress sockAddr)
+    listen sock 5
     hSetBuffering stdout NoBuffering
-    C.hPutStrLn stdout "starting server at 8888"
-    (encrypt, decrypt) <- getTableEncDec ""
+
+    C.hPutStrLn stdout $
+        "starting server at " <> C.pack (show $ server_port config)
+    (encrypt, decrypt) <- getTableEncDec $ C.pack $ password config
     mvar <- newEmptyMVar
     forkFinally (sockHandler sock encrypt decrypt) (\_ -> putMVar mvar ())
     takeMVar mvar
@@ -67,11 +73,6 @@ sockHandler sock encrypt decrypt = forever $
         remotewait <- newEmptyMVar
         void $ forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
-
-getServer :: IO AddrInfo
-getServer =
-    fmap head $ getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                            Nothing (Just "8888")
 
 handleTCP :: Socket
           -> Socket
