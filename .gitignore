@@ -2,5 +2,6 @@
 *swp
 *.hi
 *.o
+benchmark/benchmark
 dist/
 tags
