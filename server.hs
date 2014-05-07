@@ -3,7 +3,7 @@
 import Control.Concurrent (forkIO, forkFinally)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
-import Control.Monad (void, forever)
+import Control.Monad (forever, void, when)
 import Data.Char (ord)
 import Data.Binary.Get (runGet, getWord16be)
 import Data.ByteString (ByteString)
@@ -18,36 +18,39 @@ import Network.Socket hiding (recv)
 import Network.Socket.ByteString (recv, sendAll)
 -- import System.Environment (getArgs)
 
-import Shadowsocks.Encrypt (getTableEncDec, getEncDec)
+import Shadowsocks.Encrypt (getEncDec, iv_len)
 import Shadowsocks.Util (SSConfig(..), readConfig)
 
 main :: IO ()
 main = withSocketsDo $ do
     mconfig <- readConfig "config.json"
     addrinfos <- getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                             Nothing 
+                             Nothing
                              (fmap (show . server_port) mconfig)
     let config = fromJust mconfig
         sockAddr = head addrinfos
     sock <- socket (addrFamily sockAddr) Stream defaultProtocol
     bindSocket sock (addrAddress sockAddr)
-    listen sock 5
+    listen sock 128
     hSetBuffering stdout NoBuffering
 
     C.hPutStrLn stdout $
         "starting server at " <> C.pack (show $ server_port config)
-    (encrypt, decrypt) <- getTableEncDec $ C.pack $ password config
     mvar <- newEmptyMVar
-    forkFinally (sockHandler sock encrypt decrypt) (\_ -> putMVar mvar ())
+    forkFinally (sockHandler sock config (method config))
+                (\_ -> putMVar mvar ())
     takeMVar mvar
 
 sockHandler :: Socket
-            -> (ByteString -> IO ByteString)
-            -> (ByteString -> IO ByteString)
+            -> SSConfig
+            -> String
             -> IO ()
-sockHandler sock encrypt decrypt = forever $
+sockHandler sock config methodName = forever $
     (do
+        (encrypt, decrypt) <- getEncDec (method config) (password config)
         (conn, _) <- accept sock
+        when (methodName /= "table")
+             (void $ recv conn (iv_len methodName) >>= decrypt)
         addrType <- recv conn 1 >>= decrypt
 
         addr <- if ord (head $ C.unpack addrType) == 1
@@ -62,7 +65,7 @@ sockHandler sock encrypt decrypt = forever $
         addr_port <- recv conn 2 >>= decrypt
         let port = runGet getWord16be $ L.fromStrict addr_port
 
-        remoteAddr <- fmap head $ 
+        remoteAddr <- fmap head $
             getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
                         (Just addr)
                         (Just $ show port)

@@ -1,23 +1,50 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Shadowsocks.Encrypt where
+module Shadowsocks.Encrypt
+  ( getEncDec
+  , iv_len
+  ) where
 
-import Control.Concurrent.MVar (MVar, newEmptyMVar, isEmptyMVar, putMVar, readMVar)
-import Crypto.Hash.MD5 (hash)
-import Data.Binary.Get (runGet, getWord64le)
-import Data.ByteString (ByteString)
+import           Control.Concurrent.MVar ( newEmptyMVar, isEmptyMVar
+                                         , putMVar, readMVar)
+import           Crypto.Hash.MD5 (hash)
+import           Data.Binary.Get (runGet, getWord64le)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as L
-import Data.IntMap.Strict (fromList, (!))
-import Data.List (sortBy)
-import Data.Maybe (fromJust)
-import Data.Monoid ((<>))
-import Data.Word (Word8, Word64)
-import OpenSSL (withOpenSSL)
-import OpenSSL.EVP.Cipher
-import OpenSSL.Random (randBytes)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.Char
+import qualified Data.HashMap.Strict as HM
+import           Data.IntMap.Strict (fromList, (!))
+import           Data.List (sortBy)
+import           Data.Maybe (fromJust)
+import           Data.Monoid ((<>))
+import           Data.Word (Word8, Word64)
+import           OpenSSL (withOpenSSL)
+import           OpenSSL.EVP.Cipher
+import           OpenSSL.EVP.Internal
+import           OpenSSL.Random (randBytes)
+
+
+method_supported :: HM.HashMap String (Int, Int)
+method_supported = HM.fromList
+    [ ("aes-128-cfb", (16, 16))
+    , ("aes-192-cfb", (24, 16))
+    , ("aes-256-cfb", (32, 16))
+    , ("bf-cfb", (16, 8))
+    , ("camellia-128-cfb", (16, 16))
+    , ("camellia-192-cfb", (24, 16))
+    , ("camellia-256-cfb", (32, 16))
+    , ("cast5-cfb", (16, 8))
+    , ("des-cfb", (8, 8))
+    , ("idea-cfb", (16, 8))
+    , ("rc2-cfb", (16, 8))
+    , ("rc4", (16, 0))
+    , ("seed-cfb", (16, 16))
+    ]
+
+iv_len :: String -> Int
+iv_len method = m1
+  where
+    (_, m1) = method_supported HM.! method
 
 getTable :: ByteString -> [Word8]
 getTable key = do
@@ -47,54 +74,45 @@ evpBytesToKey password keyLen ivLen =
             ms (i+1) (m ++ [hash (last m <> password)])
         | otherwise = m
 
-getCipher :: ByteString -> CryptoMode -> IO (ByteString -> IO ByteString)
-getCipher iv mode = do
-    let (key, iv_) = evpBytesToKey "abc" 16 8
-    method <- fmap fromJust $ withOpenSSL $ getCipherByName "bf-cfb"
-    return $ cipherBS method (C.unpack key) (C.unpack iv) mode
+getSSLEncDec :: String -> ByteString
+             -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
+getSSLEncDec method password = do
+    let (m0, m1) = fromJust $ HM.lookup method method_supported
+    random_iv <- withOpenSSL $ randBytes 32
+    let cipher_iv = S.take m1 random_iv
+    let (key, _) = evpBytesToKey password m0 m1
+    cipherCtx <- newEmptyMVar
+    decipherCtx <- newEmptyMVar
 
-cipherMVar :: MVar ()
-cipherMVar = unsafePerformIO newEmptyMVar
-decipherMVar :: MVar (ByteString -> IO ByteString)
-decipherMVar = unsafePerformIO newEmptyMVar
-
-getEncDec :: ByteString
-          -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
-getEncDec iv = do
-
-    random_iv <- if S.null iv then withOpenSSL $ randBytes 32
-                              else return iv
-    let cipher_iv = S.take 8 random_iv
-
-    myCipher <- getCipher random_iv Encrypt
+    cipherMethod <- fmap fromJust $ withOpenSSL $ getCipherByName method
+    ctx <- cipherInit cipherMethod (C.unpack key) (C.unpack cipher_iv) Encrypt
     let
         encrypt "" = return ""
         encrypt buf = do
-            empty <- isEmptyMVar cipherMVar
+            empty <- isEmptyMVar cipherCtx
             if empty
                 then do
-                    putMVar cipherMVar ()
-                    ciphered <- withOpenSSL $ myCipher buf
-                    print cipher_iv
-                    print ciphered
+                    putMVar cipherCtx ()
+                    ciphered <- withOpenSSL $ cipherUpdateBS ctx buf
                     return $ cipher_iv <> ciphered
-                else
-                    withOpenSSL (myCipher buf)
+                else withOpenSSL $ cipherUpdateBS ctx buf
         decrypt "" = return ""
         decrypt buf = do
-            empty <- isEmptyMVar decipherMVar
+            empty <- isEmptyMVar decipherCtx
             if empty
                 then do
-                    print $ S.length buf
-                    let decipher_iv = S.take 8 buf
-                    myDecipher <- getCipher decipher_iv Decrypt
-                    putMVar decipherMVar myDecipher
-                    if S.null (S.drop 8 buf)
+                    let decipher_iv = S.take m1 buf
+                    dctx <- cipherInit cipherMethod
+                                       (C.unpack key)
+                                       (C.unpack decipher_iv)
+                                       Decrypt
+                    putMVar decipherCtx dctx
+                    if S.null (S.drop m1 buf)
                         then return ""
-                        else withOpenSSL $ myDecipher (S.drop 8 buf)
+                        else withOpenSSL $ cipherUpdateBS dctx (S.drop m1 buf)
                 else do
-                    myDecipher <- readMVar decipherMVar
-                    withOpenSSL $ myDecipher buf
+                    dctx <- readMVar decipherCtx
+                    withOpenSSL $ cipherUpdateBS dctx buf
 
     return (encrypt, decrypt)
 
@@ -111,3 +129,8 @@ getTableEncDec key = return (encrypt, decrypt)
     decrypt :: ByteString -> IO ByteString
     decrypt buf = return $
         S.pack $ map (\b -> decryptTable ! fromIntegral b) $ S.unpack buf
+
+getEncDec :: String -> String
+          -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
+getEncDec "table" key = getTableEncDec $ C.pack key
+getEncDec method key  = getSSLEncDec method $ C.pack key

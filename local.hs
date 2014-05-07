@@ -19,7 +19,7 @@ import Network.Socket hiding (recv)
 import Network.Socket.ByteString (recv, sendAll)
 -- import System.Environment (getArgs)
 
-import Shadowsocks.Encrypt (getTableEncDec, getEncDec)
+import Shadowsocks.Encrypt (getEncDec)
 import Shadowsocks.Util (SSConfig(..), readConfig)
 
 main :: IO ()
@@ -32,25 +32,24 @@ main = withSocketsDo $ do
         sockAddr = head addrinfos
     sock <- socket (addrFamily sockAddr) Stream defaultProtocol
     bindSocket sock (addrAddress sockAddr)
-    listen sock 5
+    listen sock 128
     serverAddr <- getServer (server config) (server_port config)
     hSetBuffering stdout NoBuffering
 
     C.hPutStrLn stdout $
         "starting local at " <> C.pack (show $ local_port config)
-    (encrypt, decrypt) <- getTableEncDec $ C.pack $ password config
     mvar <- newEmptyMVar
-    forkFinally (sockHandler sock serverAddr encrypt decrypt)
+    forkFinally (sockHandler sock config serverAddr)
                 (\_ -> putMVar mvar ())
     takeMVar mvar
 
 sockHandler :: Socket
+            -> SSConfig
             -> AddrInfo
-            -> (ByteString -> IO ByteString)
-            -> (ByteString -> IO ByteString)
             -> IO ()
-sockHandler sock serverAddr encrypt decrypt = forever $
+sockHandler sock config serverAddr = forever $
     (do
+        (encrypt, decrypt) <- getEncDec (method config) (password config)
         (conn, _) <- accept sock
         recv conn 262
         send conn "\x05\x00"
