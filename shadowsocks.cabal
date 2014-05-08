@@ -1,0 +1,48 @@
+name:                shadowsocks
+version:             1.20140508
+synopsis:            A lightweight tunnel proxy
+description:
+    Shadowsocks reimplemented in Haskell. Original: <https://github.com/clowwindy/shadowsocks>
+homepage:            https://github.com/rnons/shadowsocks-haskell
+license:             MIT
+license-file:        LICENSE
+author:              rnons
+maintainer:          remotenonsense@gmail.com
+category:            Web
+build-type:          Simple
+data-files:          config.json
+cabal-version:       >= 1.10
+
+executable sslocal
+  main-is:              local.hs
+  ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
+  other-modules:        Shadowsocks.Encrypt,
+                        Shadowsocks.Util
+  other-extensions:     OverloadedStrings, DeriveGeneric
+  build-depends:        base == 4.*,
+                        aeson >= 0.7,
+                        binary >= 0.7,
+                        bytestring >= 0.9,
+                        containers >= 0.5,
+                        cryptohash >= 0.11,
+                        HsOpenSSL >= 0.10,
+                        network >= 2.4,
+                        unordered-containers >= 0.2
+  default-language:     Haskell2010
+
+executable ssserver
+  main-is:              server.hs
+  ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
+  other-modules:        Shadowsocks.Encrypt,
+                        Shadowsocks.Util
+  other-extensions:     OverloadedStrings, DeriveGeneric
+  build-depends:        base == 4.*,
+                        aeson >= 0.7,
+                        binary >= 0.7,
+                        bytestring >= 0.9,
+                        containers >= 0.5,
+                        cryptohash >= 0.11,
+                        HsOpenSSL >= 0.10,
+                        network >= 2.4,
+                        unordered-containers >= 0.2
+  default-language:     Haskell2010
