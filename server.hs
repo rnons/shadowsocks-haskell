@@ -1,22 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Concurrent (forkIO, forkFinally)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
+import           Control.Concurrent (forkIO, forkFinally, killThread)
+import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
-import Control.Monad (forever, void, when)
-import Data.Char (ord)
-import Data.Binary.Get (runGet, getWord16be)
-import Data.ByteString (ByteString)
+import           Control.Monad (forever, void, when)
+import           Data.Char (ord)
+import           Data.Binary.Get (runGet, getWord16be)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
-import Data.Monoid ((<>))
-import Data.Maybe (fromJust)
-import GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
-import GHC.IO.Handle.FD (stdout)
-import Network.Socket hiding (recv)
-import Network.Socket.ByteString (recv, sendAll)
--- import System.Environment (getArgs)
+import           Data.Monoid ((<>))
+import           Data.Maybe (fromJust)
+import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
+import           GHC.IO.Handle.FD (stdout)
+import           Network.Socket hiding (recv)
+import           Network.Socket.ByteString (recv, sendAll)
 
 import Shadowsocks.Encrypt (getEncDec, iv_len)
 import Shadowsocks.Util (SSConfig(..), readConfig)
@@ -72,9 +71,8 @@ sockHandler sock config methodName = forever $
         remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
         connect remote (addrAddress remoteAddr)
         putStrLn $ "connecting " <> addr <> ":" <> show port
-        localwait <- newEmptyMVar
-        remotewait <- newEmptyMVar
-        void $ forkIO $ handleTCP conn remote encrypt decrypt localwait remotewait)
+        wait <- newEmptyMVar
+        void $ forkIO $ handleTCP conn remote encrypt decrypt wait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
 
 handleTCP :: Socket
@@ -82,23 +80,23 @@ handleTCP :: Socket
           -> (ByteString -> IO ByteString)
           -> (ByteString -> IO ByteString)
           -> MVar ()
-          -> MVar ()
           -> IO ()
-handleTCP conn remote encrypt decrypt localwait remotewait = do
-    forkIO handleLocal
-    forkIO handleRemote
-    void $ takeMVar localwait
-    void $ takeMVar remotewait
+handleTCP conn remote encrypt decrypt wait = do
+    hdl1 <- forkIO handleLocal
+    hdl2 <- forkIO handleRemote
+    takeMVar wait
+    killThread hdl1
+    killThread hdl2
     close conn
     close remote
   where
     handleLocal = do
         inData <- recv conn 4096 >>= decrypt
         if S.null inData
-            then putMVar localwait ()
+            then putMVar wait ()
             else sendAll remote inData >> handleLocal
     handleRemote = do
         inData <- recv remote 4096 >>= encrypt
         if S.null inData
-            then putMVar localwait ()
+            then putMVar wait ()
             else sendAll conn inData >> handleRemote
