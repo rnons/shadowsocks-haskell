@@ -38,18 +38,19 @@ main = withSocketsDo $ do
     C.hPutStrLn stdout $
         "starting local at " <> C.pack (show $ local_port config)
     mvar <- newEmptyMVar
-    forkFinally (sockHandler sock config serverAddr)
+    forkFinally (serveForever sock config serverAddr)
                 (\_ -> putMVar mvar ())
     takeMVar mvar
 
-sockHandler :: Socket
-            -> SSConfig
-            -> AddrInfo
-            -> IO ()
-sockHandler sock config serverAddr = forever $
+serveForever :: Socket -> SSConfig -> AddrInfo -> IO ()
+serveForever sock config serverAddr = forever $ do
+    (conn, _) <- accept sock
+    void $ forkIO $ sockHandler conn config serverAddr
+
+sockHandler :: Socket -> SSConfig -> AddrInfo -> IO ()
+sockHandler conn config serverAddr =
     (do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
-        (conn, _) <- accept sock
         recv conn 262
         send conn "\x05\x00"
         msg <- recv conn 4
@@ -77,7 +78,7 @@ sockHandler sock config serverAddr = forever $
         encrypt addr_to_send >>= sendAll remote
         C.putStrLn $ "connecting " <> addr <> ":" <> C.pack (show port)
         wait <- newEmptyMVar
-        void $ forkIO $ handleTCP conn remote encrypt decrypt wait)
+        handleTCP conn remote encrypt decrypt wait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
 
 getServer :: HostName -> Int -> IO AddrInfo

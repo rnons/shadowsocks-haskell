@@ -36,18 +36,20 @@ main = withSocketsDo $ do
     C.hPutStrLn stdout $
         "starting server at " <> C.pack (show $ server_port config)
     mvar <- newEmptyMVar
-    forkFinally (sockHandler sock config (method config))
+    forkFinally (serveForever sock config)
                 (\_ -> putMVar mvar ())
     takeMVar mvar
 
-sockHandler :: Socket
-            -> SSConfig
-            -> String
-            -> IO ()
-sockHandler sock config methodName = forever $
+serveForever :: Socket -> SSConfig -> IO ()
+serveForever sock config = forever $ do
+    (conn, _) <- accept sock
+    void $ forkIO $ sockHandler conn config
+
+sockHandler :: Socket -> SSConfig -> IO ()
+sockHandler conn config = 
     (do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
-        (conn, _) <- accept sock
+        let methodName = method config
         when (methodName /= "table")
              (void $ recv conn (iv_len methodName) >>= decrypt)
         addrType <- recv conn 1 >>= decrypt
@@ -65,14 +67,14 @@ sockHandler sock config methodName = forever $
         let port = runGet getWord16be $ L.fromStrict addr_port
 
         remoteAddr <- fmap head $
-            getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+            getAddrInfo Nothing
                         (Just addr)
                         (Just $ show port)
         remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
         connect remote (addrAddress remoteAddr)
         putStrLn $ "connecting " <> addr <> ":" <> show port
         wait <- newEmptyMVar
-        void $ forkIO $ handleTCP conn remote encrypt decrypt wait)
+        handleTCP conn remote encrypt decrypt wait)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
 
 handleTCP :: Socket
