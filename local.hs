@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkIO, forkFinally, killThread)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
@@ -79,13 +80,15 @@ sockHandler conn config serverAddr =
         C.putStrLn $ "connecting " <> addr <> ":" <> C.pack (show port)
         wait <- newEmptyMVar
         handleTCP conn remote encrypt decrypt wait)
-        `E.catch` (\e -> void $ print (e :: E.SomeException))
+        `E.catch` (\e -> do
+                    close conn
+                    void $ print (e :: E.SomeException))
 
 getServer :: HostName -> Int -> IO AddrInfo
 getServer hostname port =
-    fmap head $ getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                            (Just hostname)
-                            (Just $ show port)
+    head <$> getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                         (Just hostname)
+                         (Just $ show port)
 
 handleTCP :: Socket
           -> Socket
