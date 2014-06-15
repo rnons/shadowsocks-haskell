@@ -5,7 +5,7 @@ import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
 import           Control.Monad (forever, void, when)
 import           Data.Char (ord)
-import           Data.Binary.Get (runGet, getWord16be, getWord32be)
+import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -57,7 +57,7 @@ sockHandler conn config =
         addr <- if ord (head $ C.unpack addrType) == 1
             then do
                 addr_ip <- recv conn 4 >>= decrypt
-                inet_ntoa $ runGet getWord32be $ L.fromStrict addr_ip
+                inet_ntoa $ runGet getWord32le $ L.fromStrict addr_ip
             else do
                 addr_len <- recv conn 1 >>= decrypt
                 addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
