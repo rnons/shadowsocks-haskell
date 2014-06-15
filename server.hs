@@ -5,7 +5,7 @@ import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
 import           Control.Monad (forever, void, when)
 import           Data.Char (ord)
-import           Data.Binary.Get (runGet, getWord16be)
+import           Data.Binary.Get (runGet, getWord16be, getWord32be)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -46,7 +46,7 @@ serveForever sock config = forever $ do
     void $ forkIO $ sockHandler conn config
 
 sockHandler :: Socket -> SSConfig -> IO ()
-sockHandler conn config = 
+sockHandler conn config =
     (do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
         let methodName = method config
@@ -57,7 +57,7 @@ sockHandler conn config =
         addr <- if ord (head $ C.unpack addrType) == 1
             then do
                 addr_ip <- recv conn 4 >>= decrypt
-                inet_addr (C.unpack addr_ip) >>= inet_ntoa
+                inet_ntoa $ runGet getWord32be $ L.fromStrict addr_ip
             else do
                 addr_len <- recv conn 1 >>= decrypt
                 addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
