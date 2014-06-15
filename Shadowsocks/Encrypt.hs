@@ -19,9 +19,9 @@ import           Data.Maybe (fromJust)
 import           Data.Monoid ((<>))
 import           Data.Word (Word8, Word64)
 import           OpenSSL (withOpenSSL)
-import           OpenSSL.EVP.Cipher
-import           OpenSSL.EVP.Internal
 import           OpenSSL.Random (randBytes)
+
+import           Shadowsocks.Cipher
 
 
 method_supported :: HM.HashMap String (Int, Int)
@@ -85,7 +85,7 @@ getSSLEncDec method password = do
     decipherCtx <- newEmptyMVar
 
     cipherMethod <- fmap fromJust $ withOpenSSL $ getCipherByName method
-    ctx <- cipherInit cipherMethod (C.unpack key) (C.unpack cipher_iv) Encrypt
+    ctx <- cipherInit cipherMethod key cipher_iv Encrypt
     let
         encrypt "" = return ""
         encrypt buf = do
@@ -102,10 +102,7 @@ getSSLEncDec method password = do
             if empty
                 then do
                     let decipher_iv = S.take m1 buf
-                    dctx <- cipherInit cipherMethod
-                                       (C.unpack key)
-                                       (C.unpack decipher_iv)
-                                       Decrypt
+                    dctx <- cipherInit cipherMethod key decipher_iv Decrypt
                     putMVar decipherCtx dctx
                     if S.null (S.drop m1 buf)
                         then return ""

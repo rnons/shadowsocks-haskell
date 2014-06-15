@@ -16,7 +16,8 @@ cabal-version:       >= 1.10
 executable sslocal
   main-is:              local.hs
   ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
-  other-modules:        Shadowsocks.Encrypt,
+  other-modules:        Shadowsocks.Cipher,
+                        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
@@ -33,7 +34,8 @@ executable sslocal
 executable ssserver
   main-is:              server.hs
   ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
-  other-modules:        Shadowsocks.Encrypt,
+  other-modules:        Shadowsocks.Cipher,
+                        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
