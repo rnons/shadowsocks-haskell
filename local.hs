@@ -6,7 +6,7 @@ import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
 import           Control.Monad (forever, void)
 import           Data.Char (ord)
-import           Data.Binary.Get (runGet, getWord16be)
+import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.Binary.Put (runPut, putWord16be)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -60,7 +60,7 @@ sockHandler conn config serverAddr =
         (addr, addr_to_send') <- if ord (m !! 3) == 1
             then do
                 addr_ip <- recv conn 4
-                addr <- inet_addr (C.unpack addr_ip) >>= inet_ntoa
+                addr <- inet_ntoa $ runGet getWord32le $ L.fromStrict addr_ip
                 return (C.pack addr, addr_ip)
             else do
                 addr_len <- recv conn 1

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkIO, forkFinally, killThread)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
@@ -66,10 +67,8 @@ sockHandler conn config =
         addr_port <- recv conn 2 >>= decrypt
         let port = runGet getWord16be $ L.fromStrict addr_port
 
-        remoteAddr <- fmap head $
-            getAddrInfo Nothing
-                        (Just addr)
-                        (Just $ show port)
+        remoteAddr <- head <$>
+            getAddrInfo Nothing (Just addr) (Just $ show port)
         remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
         connect remote (addrAddress remoteAddr)
         putStrLn $ "connecting " <> addr <> ":" <> show port
