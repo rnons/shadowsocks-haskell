@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative ((<$>), (<*>))
 import           Control.Concurrent (forkIO, forkFinally, killThread)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
@@ -12,24 +12,35 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
-import           Data.Maybe (fromJust)
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid ((<>))
 import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
 import           GHC.IO.Handle.FD (stdout)
 import           Network.Socket hiding (recv)
 import           Network.Socket.ByteString (recv, sendAll)
+import           Options.Applicative (execParser, info, helper, fullDesc, header)
 
 import Shadowsocks.Encrypt (getEncDec)
-import Shadowsocks.Util (SSConfig(..), readConfig)
+import Shadowsocks.Util
+
 
 main :: IO ()
 main = withSocketsDo $ do
-    mconfig <- readConfig "config.json"
+    o <- execParser $ info (helper <*> configOptions)
+                      (fullDesc <> header "shadowsocks")
+    let configFile = fromMaybe "config.json" (_config o)
+    mconfig <- readConfig configFile
+    let c = fromMaybe nullConfig mconfig
+        config = c { server = fromMaybe (server c) (_server o)
+                   , server_port = fromMaybe (server_port c) (_server_port o)
+                   , local_port = fromMaybe (local_port c) (_local_port o)
+                   , password = fromMaybe (password c) (_password o)
+                   , method = fromMaybe (method c) (_method o)
+                   }
     addrinfos <- getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
                              Nothing
-                             (fmap (show . local_port) mconfig)
-    let config = fromJust mconfig
-        sockAddr = head addrinfos
+                             (Just $ show $ local_port config)
+    let sockAddr = head addrinfos
     sock <- socket (addrFamily sockAddr) Stream defaultProtocol
     bindSocket sock (addrAddress sockAddr)
     listen sock 128

@@ -28,6 +28,7 @@ executable sslocal
                         cryptohash >= 0.11,
                         HsOpenSSL >= 0.10,
                         network >= 2.4,
+                        optparse-applicative >= 0.8,
                         unordered-containers >= 0.2
   default-language:     Haskell2010
 
@@ -46,5 +47,6 @@ executable ssserver
                         cryptohash >= 0.11,
                         HsOpenSSL >= 0.10,
                         network >= 2.4,
+                        optparse-applicative >= 0.8,
                         unordered-containers >= 0.2
   default-language:     Haskell2010
