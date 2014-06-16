@@ -16,8 +16,9 @@ module Shadowsocks.Cipher
 
 import           Control.Applicative ((<$>))
 import           Control.Exception (mask_)
+import           Control.Monad (void)
 import qualified Data.ByteString.Internal as B8
-import           Data.ByteString.Unsafe (unsafeUseAsCStringLen)
+import           Data.ByteString (useAsCStringLen)
 import           Foreign.C
 import           Foreign.C.Types
 import           Foreign.ForeignPtr
@@ -69,10 +70,7 @@ getCipherByName :: String -> IO (Maybe Cipher)
 getCipherByName name
     = withCString name $ \ namePtr ->
       do ptr <- _get_cipherbyname namePtr
-         if ptr == nullPtr then
-             return Nothing
-           else
-             return $ Just $ Cipher ptr
+         return $ if ptr == nullPtr then Nothing else Just $ Cipher ptr
 
 data CryptoMode = Encrypt | Decrypt
 
@@ -85,8 +83,8 @@ cipherInit :: Cipher
 cipherInit (Cipher c) key iv mode
     = do ctx <- newCipherCtx
          withCipherCtxPtr ctx $ \ ctxPtr ->
-             unsafeUseAsCStringLen key $ \ (keyPtr, _) ->
-                 unsafeUseAsCStringLen iv $ \ (ivPtr, _) ->
+             useAsCStringLen key $ \ (keyPtr, _) ->
+                 useAsCStringLen iv $ \ (ivPtr, _) ->
                      _CipherInit ctxPtr c keyPtr ivPtr (cryptoModeToInt mode)
                           >>= failIf_ (/= 1)
          return ctx
@@ -94,7 +92,7 @@ cipherInit (Cipher c) key iv mode
 cipherUpdateBS :: CipherCtx -> B8.ByteString -> IO B8.ByteString
 cipherUpdateBS ctx inBS =
   withCipherCtxPtr ctx $ \ctxPtr ->
-    unsafeUseAsCStringLen inBS $ \(inBuf, inLen) ->
+    useAsCStringLen inBS $ \(inBuf, inLen) ->
       let len = inLen + fromIntegral (_cipher_ctx_block_size ctxPtr) - 1 in
         B8.createAndTrim len $ \outBuf ->
           alloca $ \outLenPtr ->
@@ -109,5 +107,4 @@ failIf f a
     | otherwise = return a
 
 failIf_ :: (a -> Bool) -> a -> IO ()
-failIf_ f a
-    = failIf f a >> return ()
+failIf_ f a = void $ failIf f a
