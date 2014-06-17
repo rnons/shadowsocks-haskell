@@ -1,17 +1,23 @@
 name:                shadowsocks
-version:             1.20140508
-synopsis:            A lightweight tunnel proxy
+version:             1.20140617
+synopsis:            A fast tunnel proxy that help you get through firewalls
 description:
-    Shadowsocks reimplemented in Haskell. Original: <https://github.com/clowwindy/shadowsocks>
+    Shadowsocks implemented in Haskell. Original python version: <https://github.com/clowwindy/shadowsocks>
 homepage:            https://github.com/rnons/shadowsocks-haskell
+bug-reports:         https://github.com/rnons/shadowsocks-haskell/issues
 license:             MIT
 license-file:        LICENSE
 author:              rnons
 maintainer:          remotenonsense@gmail.com
 category:            Web
 build-type:          Simple
-data-files:          config.json
 cabal-version:       >= 1.10
+tested-with:         GHC == 7.8.2
+data-files:          config.json
+
+source-repository   head
+  type:             git
+  location:         git://github.com/rnons/shadowsocks-haskell.git
 
 executable sslocal
   main-is:              local.hs
