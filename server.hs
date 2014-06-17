@@ -12,23 +12,21 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
 import           Data.Monoid ((<>))
-import           Data.Maybe (fromJust)
 import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
 import           GHC.IO.Handle.FD (stdout)
 import           Network.Socket hiding (recv)
 import           Network.Socket.ByteString (recv, sendAll)
 
 import Shadowsocks.Encrypt (getEncDec, iv_len)
-import Shadowsocks.Util (SSConfig(..), readConfig)
+import Shadowsocks.Util
 
 main :: IO ()
 main = withSocketsDo $ do
-    mconfig <- readConfig "config.json"
+    config <- parseConfigOptions
     addrinfos <- getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
                              Nothing
-                             (fmap (show . server_port) mconfig)
-    let config = fromJust mconfig
-        sockAddr = head addrinfos
+                             (Just $ show $ server_port config)
+    let sockAddr = head addrinfos
     sock <- socket (addrFamily sockAddr) Stream defaultProtocol
     bindSocket sock (addrAddress sockAddr)
     listen sock 128
@@ -41,12 +39,12 @@ main = withSocketsDo $ do
                 (\_ -> putMVar mvar ())
     takeMVar mvar
 
-serveForever :: Socket -> SSConfig -> IO ()
+serveForever :: Socket -> Config -> IO ()
 serveForever sock config = forever $ do
     (conn, _) <- accept sock
     void $ forkIO $ sockHandler conn config
 
-sockHandler :: Socket -> SSConfig -> IO ()
+sockHandler :: Socket -> Config -> IO ()
 sockHandler conn config =
     (do
         (encrypt, decrypt) <- getEncDec (method config) (password config)

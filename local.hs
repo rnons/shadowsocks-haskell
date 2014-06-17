@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Control.Applicative ((<$>), (<*>))
+import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkIO, forkFinally, killThread)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
@@ -12,13 +12,11 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
-import           Data.Maybe (fromMaybe)
 import           Data.Monoid ((<>))
 import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
 import           GHC.IO.Handle.FD (stdout)
 import           Network.Socket hiding (recv)
 import           Network.Socket.ByteString (recv, sendAll)
-import           Options.Applicative (execParser, info, helper, fullDesc, header)
 
 import Shadowsocks.Encrypt (getEncDec)
 import Shadowsocks.Util
@@ -26,17 +24,7 @@ import Shadowsocks.Util
 
 main :: IO ()
 main = withSocketsDo $ do
-    o <- execParser $ info (helper <*> configOptions)
-                      (fullDesc <> header "shadowsocks")
-    let configFile = fromMaybe "config.json" (_config o)
-    mconfig <- readConfig configFile
-    let c = fromMaybe nullConfig mconfig
-        config = c { server = fromMaybe (server c) (_server o)
-                   , server_port = fromMaybe (server_port c) (_server_port o)
-                   , local_port = fromMaybe (local_port c) (_local_port o)
-                   , password = fromMaybe (password c) (_password o)
-                   , method = fromMaybe (method c) (_method o)
-                   }
+    config <- parseConfigOptions
     addrinfos <- getAddrInfo (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
                              Nothing
                              (Just $ show $ local_port config)
@@ -54,12 +42,12 @@ main = withSocketsDo $ do
                 (\_ -> putMVar mvar ())
     takeMVar mvar
 
-serveForever :: Socket -> SSConfig -> AddrInfo -> IO ()
+serveForever :: Socket -> Config -> AddrInfo -> IO ()
 serveForever sock config serverAddr = forever $ do
     (conn, _) <- accept sock
     void $ forkIO $ sockHandler conn config serverAddr
 
-sockHandler :: Socket -> SSConfig -> AddrInfo -> IO ()
+sockHandler :: Socket -> Config -> AddrInfo -> IO ()
 sockHandler conn config serverAddr =
     (do
         (encrypt, decrypt) <- getEncDec (method config) (password config)

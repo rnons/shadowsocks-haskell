@@ -1,20 +1,18 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Shadowsocks.Util
-  ( SSConfig (..)
-  , SSConfig' (..)
-  , nullConfig
-  , readConfig
-  , configOptions
+  ( Config (..)
+  , parseConfigOptions
   ) where
 
 import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
 import qualified Data.ByteString.Lazy as L
+import           Data.Maybe (fromMaybe)
 import           GHC.Generics (Generic)
 import           Options.Applicative
 import           Options.Applicative.Types (ReadM(ReadM))
 
-data SSConfig = SSConfig
+data Config = Config
     { server        :: String
     , server_port   :: Int
     , local_port    :: Int
@@ -23,21 +21,21 @@ data SSConfig = SSConfig
     , method        :: String
     } deriving (Show, Generic)
 
-instance FromJSON SSConfig
+instance FromJSON Config
 
-data SSConfig' = SSConfig'
-    { _config        :: Maybe String
-    , _server        :: Maybe String
+data Options = Options
+    { _server        :: Maybe String
     , _server_port   :: Maybe Int
     , _local_port    :: Maybe Int
     , _password      :: Maybe String
     , _method        :: Maybe String
+    , _config        :: Maybe String
     } deriving (Show, Generic)
 
-nullConfig :: SSConfig
-nullConfig = SSConfig "" 0 0 "" 0 ""
+nullConfig :: Config
+nullConfig = Config "" 0 0 "" 0 ""
 
-readConfig :: FilePath -> IO (Maybe SSConfig)
+readConfig :: FilePath -> IO (Maybe Config)
 readConfig fp = liftM decode' $ L.readFile fp
 
 optStr :: Mod OptionFields (Maybe String) -> Parser (Maybe String)
@@ -52,17 +50,31 @@ maybeOpt m =
   where
     success = ReadM . Right
 
-configOptions :: Parser SSConfig'
-configOptions = SSConfig'
-    <$> optStr (long "config" <> short 'c' <> metavar "CONFIG"
-               <> help "path to config file")
-    <*> optStr (long "server" <> short 's' <> metavar "ADDR"
+configOptions :: Parser Options
+configOptions = Options
+    <$> optStr (long "server" <> short 's' <> metavar "ADDR"
                <> help "server address")
-    <*> maybeOpt (long "server_port" <> short 'p' <> metavar "PORT"
+    <*> maybeOpt (long "server-port" <> short 'p' <> metavar "PORT"
                  <> help "server port")
-    <*> maybeOpt (long "local_port" <> short 'l' <> metavar "PORT"
+    <*> maybeOpt (long "local-port" <> short 'l' <> metavar "PORT"
                  <> help "local port")
     <*> optStr (long "password" <> short 'k' <> metavar "PASSWORD"
                <> help "password")
     <*> optStr (long "method" <> short 'm' <> metavar "METHOD"
                <> help "encryption method, for example, aes-256-cfb")
+    <*> optStr (long "config" <> short 'c' <> metavar "CONFIG"
+               <> help "path to config file")
+
+parseConfigOptions :: IO Config
+parseConfigOptions = do
+    o <- execParser $ info (helper <*> configOptions)
+                      (fullDesc <> header "shadowsocks - a fast tunnel proxy")
+    let configFile = fromMaybe "config.json" (_config o)
+    mconfig <- readConfig configFile
+    let c = fromMaybe nullConfig mconfig
+    return $ c { server = fromMaybe (server c) (_server o)
+               , server_port = fromMaybe (server_port c) (_server_port o)
+               , local_port = fromMaybe (local_port c) (_local_port o)
+               , password = fromMaybe (password c) (_password o)
+               , method = fromMaybe (method c) (_method o)
+               }
