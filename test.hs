@@ -1,15 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (newEmptyMVar,  putMVar, takeMVar)
+import           Control.Concurrent (forkIO)
+import           Control.Concurrent.MVar (newEmptyMVar,  putMVar, takeMVar)
+import           Crypto.Hash.MD5 (hash)
+import           Data.Binary.Get (runGet, getWord64le)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import Data.Word (Word8)
-import Data.IntMap.Strict (fromList, elems)
-import GHC.IO.Handle (hClose)
-import System.Process (createProcess, CreateProcess(std_out), shell, StdStream(CreatePipe), rawSystem, interruptProcessGroupOf)
-import System.Exit (ExitCode(ExitSuccess))
-import Test.HUnit
-
-import Shadowsocks.Encrypt (getTable)
+import qualified Data.ByteString.Lazy as L
+import           Data.List (sortBy)
+import           Data.IntMap.Strict (fromList, elems)
+import           Data.Word (Word8, Word64)
+import           GHC.IO.Handle (hClose)
+import           System.Process (createProcess, CreateProcess(std_out), shell
+                                , StdStream(CreatePipe), rawSystem
+                                , interruptProcessGroupOf)
+import           System.Exit (ExitCode(ExitSuccess))
+import           Test.HUnit
 
 
 target1 :: [[Word8]]
@@ -62,15 +67,28 @@ target2 = [
      230, 133, 215, 41, 184, 22, 104, 254, 234, 253, 187, 226, 247, 188, 156, 151, 40, 108, 51, 83, 178, 52, 3, 31, 255,
      195, 53, 235, 126, 167, 120]]
 
+getTable :: ByteString -> [Word8]
+getTable key = do
+    let s = L.fromStrict $ hash key
+        a = runGet getWord64le s
+        table = [0..255]
+
+    map fromIntegral $ sortTable 1 a table
+
+sortTable :: Word64 -> Word64 -> [Word64] -> [Word64]
+sortTable 1024 _ table = table
+sortTable i a table = sortTable (i+1) a $ sortBy cmp table
+  where
+    cmp x y = compare (a `mod` (x + i)) (a `mod` (y + i))
 
 main :: IO ()
 main = do
     runTestTT tests
 
     (_, Just p1_out, _, p1_hdl) <-
-        createProcess (shell "runhaskell server.hs") { std_out = CreatePipe }
+        createProcess (shell "cabal run ssserver") { std_out = CreatePipe }
     (_, Just p2_out, _, p2_hdl) <-
-        createProcess (shell "runhaskell local.hs") { std_out = CreatePipe }
+        createProcess (shell "cabal run sslocal") { std_out = CreatePipe }
 
     wait1 <- newEmptyMVar
     wait2 <- newEmptyMVar
@@ -83,7 +101,7 @@ main = do
                              , "-v"
                              , "-L"
                              , "--socks5-hostname"
-                             , "127.0.0.1:7777"
+                             , "127.0.0.1:1080"
                              ]
     putStrLn $ if code == ExitSuccess then "test passed"
                                       else "test failed"
