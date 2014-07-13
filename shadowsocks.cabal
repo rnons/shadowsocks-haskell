@@ -1,5 +1,5 @@
 name:                shadowsocks
-version:             1.20140617
+version:             1.20140713
 synopsis:            A fast tunnel proxy that help you get through firewalls
 description:
     Shadowsocks implemented in Haskell. Original python version: <https://github.com/clowwindy/shadowsocks>
@@ -22,8 +22,7 @@ source-repository   head
 executable sslocal
   main-is:              local.hs
   ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
-  other-modules:        Shadowsocks.Cipher,
-                        Shadowsocks.Encrypt,
+  other-modules:        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
@@ -32,7 +31,7 @@ executable sslocal
                         bytestring >= 0.9,
                         containers >= 0.5,
                         cryptohash >= 0.11,
-                        HsOpenSSL >= 0.10,
+                        HsOpenSSL >= 0.11,
                         network >= 2.4,
                         optparse-applicative >= 0.8,
                         unordered-containers >= 0.2
@@ -41,8 +40,7 @@ executable sslocal
 executable ssserver
   main-is:              server.hs
   ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
-  other-modules:        Shadowsocks.Cipher,
-                        Shadowsocks.Encrypt,
+  other-modules:        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
@@ -51,7 +49,7 @@ executable ssserver
                         bytestring >= 0.9,
                         containers >= 0.5,
                         cryptohash >= 0.11,
-                        HsOpenSSL >= 0.10,
+                        HsOpenSSL >= 0.11,
                         network >= 2.4,
                         optparse-applicative >= 0.8,
                         unordered-containers >= 0.2
@@ -67,7 +65,7 @@ test-suite test
                         bytestring >= 0.9,
                         containers >= 0.5,
                         cryptohash >= 0.11,
-                        HsOpenSSL >= 0.10,
+                        HsOpenSSL >= 0.11,
                         network >= 2.4,
                         optparse-applicative >= 0.8,
                         process >= 1.1,
