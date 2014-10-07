@@ -1,4 +1,7 @@
 CHANGELOG
 
+1.20140713 -> 1.20141007
+  - Update to optparse-applicative-0.11
+
 1.20140617 -> 1.20140713
   - Update to HsOpenSSL-0.11
