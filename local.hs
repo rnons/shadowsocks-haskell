@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Applicative ((<$>))
-import           Control.Concurrent (forkIO, forkFinally, killThread)
-import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
+import           Control.Concurrent (forkFinally)
+import           Control.Concurrent.Async (concurrently)
 import qualified Control.Exception as E
-import           Control.Monad (forever, void)
+import           Control.Monad (forever, void, unless)
 import           Data.Char (ord)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.Binary.Put (runPut, putWord16be)
@@ -75,8 +75,7 @@ sockHandler conn config serverAddr =
         connect remote (addrAddress serverAddr)
         encrypt addr_to_send >>= sendAll remote
         C.putStrLn $ "connecting " <> addr <> ":" <> C.pack (show port)
-        wait <- newEmptyMVar
-        handleTCP conn remote encrypt decrypt wait)
+        handleTCP conn remote encrypt decrypt)
         `E.catch` (\e -> do
                     close conn
                     void $ print (e :: E.SomeException))
@@ -91,23 +90,14 @@ handleTCP :: Socket
           -> Socket
           -> (ByteString -> IO ByteString)
           -> (ByteString -> IO ByteString)
-          -> MVar ()
           -> IO ()
-handleTCP conn remote encrypt decrypt wait = do
-    hdl1 <- forkIO handleLocal
-    hdl2 <- forkIO handleRemote
-    takeMVar wait
-    killThread hdl1
-    killThread hdl2
+handleTCP conn remote encrypt decrypt = do
+    concurrently handleLocal handleRemote
     close remote
   where
     handleLocal = do
         inData <- recv conn 4096 >>= encrypt
-        if S.null inData
-            then putMVar wait ()
-            else sendAll remote inData >> handleLocal
+        unless (S.null inData) $ sendAll remote inData >> handleLocal
     handleRemote = do
         inData <- recv remote 4096 >>= decrypt
-        if S.null inData
-            then putMVar wait ()
-            else sendAll conn inData >> handleRemote
+        unless (S.null inData) $ sendAll conn inData >> handleRemote
