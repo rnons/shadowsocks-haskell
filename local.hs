@@ -37,15 +37,13 @@ main = withSocketsDo $ do
 
     C.hPutStrLn stdout $
         "starting local at " <> C.pack (show $ local_port config)
-    mvar <- newEmptyMVar
-    forkFinally (serveForever sock config serverAddr)
-                (\_ -> putMVar mvar ())
-    takeMVar mvar
+    serveForever sock config serverAddr
 
 serveForever :: Socket -> Config -> AddrInfo -> IO ()
 serveForever sock config serverAddr = forever $ do
     (conn, _) <- accept sock
-    void $ forkIO $ sockHandler conn config serverAddr
+    forkFinally (sockHandler conn config serverAddr)
+                (\_ -> close conn)
 
 sockHandler :: Socket -> Config -> AddrInfo -> IO ()
 sockHandler conn config serverAddr =
@@ -101,7 +99,6 @@ handleTCP conn remote encrypt decrypt wait = do
     takeMVar wait
     killThread hdl1
     killThread hdl2
-    close conn
     close remote
   where
     handleLocal = do
