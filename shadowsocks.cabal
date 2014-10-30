@@ -27,6 +27,7 @@ executable sslocal
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
                         aeson >= 0.7,
+                        async >= 2.0,
                         binary >= 0.7,
                         bytestring >= 0.9,
                         containers >= 0.5,
@@ -45,6 +46,7 @@ executable ssserver
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
                         aeson >= 0.7,
+                        async >= 2.0,
                         binary >= 0.7,
                         bytestring >= 0.9,
                         containers >= 0.5,
