@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Applicative ((<$>))
-import           Control.Concurrent (forkIO, forkFinally, killThread)
-import           Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
+import           Control.Concurrent (forkFinally)
+import           Control.Concurrent.Async (concurrently)
 import qualified Control.Exception as E
-import           Control.Monad (forever, void, when)
+import           Control.Monad (forever, void, when, unless)
 import           Data.Char (ord)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.ByteString (ByteString)
@@ -34,15 +34,13 @@ main = withSocketsDo $ do
 
     C.hPutStrLn stdout $
         "starting server at " <> C.pack (show $ server_port config)
-    mvar <- newEmptyMVar
-    forkFinally (serveForever sock config)
-                (\_ -> putMVar mvar ())
-    takeMVar mvar
+    serveForever sock config
 
 serveForever :: Socket -> Config -> IO ()
 serveForever sock config = forever $ do
     (conn, _) <- accept sock
-    void $ forkIO $ sockHandler conn config
+    forkFinally (sockHandler conn config)
+                (\_ -> close conn)
 
 sockHandler :: Socket -> Config -> IO ()
 sockHandler conn config =
@@ -70,32 +68,21 @@ sockHandler conn config =
         remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
         connect remote (addrAddress remoteAddr)
         putStrLn $ "connecting " <> addr <> ":" <> show port
-        wait <- newEmptyMVar
-        handleTCP conn remote encrypt decrypt wait)
+        handleTCP conn remote encrypt decrypt)
         `E.catch` (\e -> void $ print (e :: E.SomeException))
 
 handleTCP :: Socket
           -> Socket
           -> (ByteString -> IO ByteString)
           -> (ByteString -> IO ByteString)
-          -> MVar ()
           -> IO ()
-handleTCP conn remote encrypt decrypt wait = do
-    hdl1 <- forkIO handleLocal
-    hdl2 <- forkIO handleRemote
-    takeMVar wait
-    killThread hdl1
-    killThread hdl2
-    close conn
+handleTCP conn remote encrypt decrypt = do
+    concurrently handleLocal handleRemote
     close remote
   where
     handleLocal = do
         inData <- recv conn 4096 >>= decrypt
-        if S.null inData
-            then putMVar wait ()
-            else sendAll remote inData >> handleLocal
+        unless (S.null inData) $ sendAll remote inData >> handleLocal
     handleRemote = do
         inData <- recv remote 4096 >>= encrypt
-        if S.null inData
-            then putMVar wait ()
-            else sendAll conn inData >> handleRemote
+        unless (S.null inData) $ sendAll conn inData >> handleRemote
