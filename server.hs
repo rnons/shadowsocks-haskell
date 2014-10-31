@@ -3,7 +3,6 @@
 import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkFinally)
 import           Control.Concurrent.Async (concurrently)
-import qualified Control.Exception as E
 import           Control.Monad (forever, void, when, unless)
 import           Data.Char (ord)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
@@ -43,33 +42,31 @@ serveForever sock config = forever $ do
                 (\_ -> close conn)
 
 sockHandler :: Socket -> Config -> IO ()
-sockHandler conn config =
-    (do
-        (encrypt, decrypt) <- getEncDec (method config) (password config)
-        let methodName = method config
-        when (methodName /= "table")
-             (void $ recv conn (iv_len methodName) >>= decrypt)
-        addrType <- recv conn 1 >>= decrypt
+sockHandler conn config = do
+    (encrypt, decrypt) <- getEncDec (method config) (password config)
+    let methodName = method config
+    when (methodName /= "table")
+         (void $ recv conn (iv_len methodName) >>= decrypt)
+    addrType <- recv conn 1 >>= decrypt
 
-        addr <- if ord (head $ C.unpack addrType) == 1
-            then do
-                addr_ip <- recv conn 4 >>= decrypt
-                inet_ntoa $ runGet getWord32le $ L.fromStrict addr_ip
-            else do
-                addr_len <- recv conn 1 >>= decrypt
-                addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
-                return $ C.unpack addr
+    addr <- if ord (head $ C.unpack addrType) == 1
+        then do
+            addr_ip <- recv conn 4 >>= decrypt
+            inet_ntoa $ runGet getWord32le $ L.fromStrict addr_ip
+        else do
+            addr_len <- recv conn 1 >>= decrypt
+            addr <- recv conn (ord $ head $ C.unpack addr_len) >>= decrypt
+            return $ C.unpack addr
 
-        addr_port <- recv conn 2 >>= decrypt
-        let port = runGet getWord16be $ L.fromStrict addr_port
+    addr_port <- recv conn 2 >>= decrypt
+    let port = runGet getWord16be $ L.fromStrict addr_port
 
-        remoteAddr <- head <$>
-            getAddrInfo Nothing (Just addr) (Just $ show port)
-        remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
-        connect remote (addrAddress remoteAddr)
-        putStrLn $ "connecting " <> addr <> ":" <> show port
-        handleTCP conn remote encrypt decrypt)
-        `E.catch` (\e -> void $ print (e :: E.SomeException))
+    remoteAddr <- head <$>
+        getAddrInfo Nothing (Just addr) (Just $ show port)
+    remote <- socket (addrFamily remoteAddr) Stream defaultProtocol
+    connect remote (addrAddress remoteAddr)
+    putStrLn $ "connecting " <> addr <> ":" <> show port
+    handleTCP conn remote encrypt decrypt
 
 handleTCP :: Socket
           -> Socket
