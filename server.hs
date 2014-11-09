@@ -2,7 +2,7 @@
 
 import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkFinally)
-import           Control.Concurrent.Async (concurrently)
+import           Control.Concurrent.Async (race_)
 import           Control.Monad (forever, void, when, unless)
 import           Data.Char (ord)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
@@ -74,7 +74,7 @@ handleTCP :: Socket
           -> (ByteString -> IO ByteString)
           -> IO ()
 handleTCP conn remote encrypt decrypt = do
-    concurrently handleLocal handleRemote
+    race_ handleLocal handleRemote
     close remote
   where
     handleLocal = do
