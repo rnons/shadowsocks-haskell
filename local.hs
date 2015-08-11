@@ -14,6 +14,8 @@ import           Data.Conduit.Network ( runTCPServer, runTCPClient
                                       , serverSettings, clientSettings
                                       , appSource, appSink)
 import           Data.Monoid ((<>))
+import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
+import           GHC.IO.Handle.FD (stdout)
 
 import Shadowsocks.Encrypt (getEncDec)
 import Shadowsocks.Util
@@ -64,6 +66,7 @@ handleRemote decrypt = awaitForever $ \inData -> do
 
 main :: IO ()
 main = do
+    hSetBuffering stdout NoBuffering
     config <- parseConfigOptions
     let localSettings = serverSettings (local_port config) "*"
         remoteSettings = clientSettings (server_port config)
