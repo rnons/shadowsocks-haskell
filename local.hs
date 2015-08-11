@@ -74,9 +74,10 @@ main = do
     C.putStrLn $ "starting local at " <> C.pack (show $ local_port config)
     runTCPServer localSettings $ \client -> do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
-        (cont, ()) <- appSource client $$+ initLocal =$ appSink client
+        (clientSource, ()) <- appSource client $$+ initLocal =$ appSink client
         runTCPClient remoteSettings $ \appServer -> do
-            (lefto, ()) <- cont $$++ initRemote encrypt =$ appSink appServer
+            (clientSource', ()) <-
+                clientSource $$++ initRemote encrypt =$ appSink appServer
             void $ concurrently
-                (lefto $$+- handleLocal encrypt =$ appSink appServer)
+                (clientSource' $$+- handleLocal encrypt =$ appSink appServer)
                 (appSource appServer $$ handleRemote decrypt =$ appSink client)
