@@ -3,7 +3,6 @@
 import           Conduit ( Conduit, Sink, await, awaitForever
                          , yield, liftIO, (=$), ($$), ($$+), ($$+-))
 import           Control.Concurrent.Async (race_)
-import           Control.Monad (void)
 import           Data.Binary.Get (runGet, getWord16be)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -35,7 +34,10 @@ initRemote decrypt = await >>=
                 let addrLen = ord $ C.head request'
                     (domain, rest) = S.splitAt (addrLen + 1) request'
                 return (S.tail domain, S.take 2 rest)
-            _ -> error "Unsupported yet."
+            4 -> do     -- IPv6
+                let (ip, rest) = S.splitAt 16 request'
+                return (ip, S.take 2 rest)
+            _ -> error $ C.unpack $ S.snoc "Unknown address type: " addrType 
         let port = fromIntegral $ runGet getWord16be $ L.fromStrict addrPort
         return (addr, port))
 

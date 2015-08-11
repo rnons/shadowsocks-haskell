@@ -3,7 +3,6 @@
 import           Conduit ( Conduit, await, awaitForever, leftover, yield
                          , liftIO, (=$), ($$), ($$+), ($$++), ($$+-))
 import           Control.Concurrent.Async (race_)
-import           Control.Monad (void)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -35,7 +34,10 @@ initLocal = do
                 let addrLen = ord $ C.head request'
                     (domain, rest) = S.splitAt (addrLen + 1) request'
                 return (S.tail domain, domain, S.take 2 rest)
-            _ -> error "Unsupported yet."
+            4 -> do     -- IPv6
+                let (ip, rest) = S.splitAt 16 request'
+                return (ip, ip, S.take 2 rest)
+            _ -> error $ C.unpack $ S.snoc "Unknown address type: " addrType
         yield "\x05\x00\x00\x01\x00\x00\x00\x00\x10\x10"
         let addrToSend = S.singleton addrType <> payload <> addrPort
             port = runGet getWord16be $ L.fromStrict addrPort
