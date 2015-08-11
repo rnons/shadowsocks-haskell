@@ -1,5 +1,8 @@
 CHANGELOG
 
+1.20141007 -> 1.20150811
+  - Utilize Data.Conduit.Network of conduit-extra package
+
 1.20140713 -> 1.20141007
   - Update to optparse-applicative-0.11
 

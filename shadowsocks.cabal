@@ -1,6 +1,6 @@
 name:                shadowsocks
-version:             1.20141007
-synopsis:            A fast tunnel proxy that help you get through firewalls
+version:             1.20150811
+synopsis:            A fast SOCKS5 proxy that help you get through firewalls
 description:
     Shadowsocks implemented in Haskell. Original python version: <https://github.com/clowwindy/shadowsocks>
 homepage:            https://github.com/rnons/shadowsocks-haskell
@@ -12,7 +12,7 @@ maintainer:          remotenonsense@gmail.com
 category:            Web
 build-type:          Simple
 cabal-version:       >= 1.10
-tested-with:         GHC == 7.8.2
+tested-with:         GHC == 7.10.2
 data-files:          config.json
 
 source-repository   head
