@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Conduit ( Conduit, Sink, await, awaitForever
-                         , yield, liftIO, (=$), ($$), ($$+), ($$+-))
+import           Conduit (Sink, await, liftIO, (=$), ($$), ($$+), ($$+-))
 import           Control.Concurrent.Async (race_)
 import           Data.Binary (decode)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
@@ -22,7 +21,7 @@ import Shadowsocks.Encrypt (getEncDec)
 import Shadowsocks.Util
 
 initRemote :: (ByteString -> IO ByteString)
-                   -> Sink ByteString IO (ByteString, Int)
+           -> Sink ByteString IO (ByteString, Int)
 initRemote decrypt = await >>= 
     maybe (error "Invalid request") (\encRequest -> do
         request <- liftIO $ decrypt encRequest
@@ -47,18 +46,6 @@ initRemote decrypt = await >>=
         let port = fromIntegral $ runGet getWord16be $ L.fromStrict addrPort
         return (addr, port))
 
-handleLocal :: (ByteString -> IO ByteString)
-            -> Conduit ByteString IO ByteString
-handleLocal encrypt = awaitForever $ \inData -> do
-    enc <- liftIO $ encrypt inData
-    yield enc
-
-handleRemote :: (ByteString -> IO ByteString)
-             -> Conduit ByteString IO ByteString
-handleRemote decrypt = awaitForever $ \inData -> do
-    dec <- liftIO $ decrypt inData
-    yield dec
-
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -72,5 +59,5 @@ main = do
         let remoteSettings = clientSettings port host
         C.putStrLn $ "connecting " <> host <> ":" <> C.pack (show port)
         runTCPClient remoteSettings $ \appServer -> race_
-            (clientSource $$+- handleLocal decrypt =$ appSink appServer)
-            (appSource appServer $$ handleRemote encrypt =$ appSink client)
+            (clientSource $$+- cryptConduit decrypt =$ appSink appServer)
+            (appSource appServer $$ cryptConduit encrypt =$ appSink client)

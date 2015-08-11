@@ -2,10 +2,13 @@
 module Shadowsocks.Util
   ( Config (..)
   , parseConfigOptions
+  , cryptConduit
   ) where
 
+import           Conduit (Conduit, awaitForever, yield, liftIO)
 import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import           Data.Maybe (fromMaybe)
 import           GHC.Generics (Generic)
@@ -65,3 +68,9 @@ parseConfigOptions = do
                , password = fromMaybe (password c) (_password o)
                , method = fromMaybe (method c) (_method o)
                }
+
+cryptConduit :: (ByteString -> IO ByteString)
+             -> Conduit ByteString IO ByteString
+cryptConduit crypt = awaitForever $ \input -> do
+    output <- liftIO $ crypt input
+    yield output

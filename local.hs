@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Conduit ( Conduit, await, awaitForever, leftover, yield
-                         , liftIO, (=$), ($$), ($$+), ($$++), ($$+-))
+import           Conduit ( Conduit, await, leftover, yield, liftIO
+                         , (=$), ($$), ($$+), ($$++), ($$+-))
 import           Control.Concurrent.Async (race_)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -60,18 +60,6 @@ initRemote encrypt = do
             yield enc
         Nothing -> return ()
 
-handleLocal :: (ByteString -> IO ByteString)
-            -> Conduit ByteString IO ByteString
-handleLocal encrypt = awaitForever $ \inData -> do
-    enc <- liftIO $ encrypt inData
-    yield enc
-
-handleRemote :: (ByteString -> IO ByteString)
-             -> Conduit ByteString IO ByteString
-handleRemote decrypt = awaitForever $ \inData -> do
-    dec <- liftIO $ decrypt inData
-    yield dec
-
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -87,5 +75,5 @@ main = do
             (clientSource', ()) <-
                 clientSource $$++ initRemote encrypt =$ appSink appServer
             race_
-                (clientSource' $$+- handleLocal encrypt =$ appSink appServer)
-                (appSource appServer $$ handleRemote decrypt =$ appSink client)
+                (clientSource' $$+- cryptConduit encrypt =$ appSink appServer)
+                (appSource appServer $$ cryptConduit decrypt =$ appSink client)
