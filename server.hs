@@ -2,7 +2,7 @@
 
 import           Conduit ( Conduit, Sink, await, awaitForever
                          , yield, liftIO, (=$), ($$), ($$+), ($$+-))
-import           Control.Concurrent.Async (concurrently)
+import           Control.Concurrent.Async (race_)
 import           Control.Monad (void)
 import           Data.Binary.Get (runGet, getWord16be)
 import           Data.ByteString (ByteString)
@@ -63,6 +63,6 @@ main = do
             appSource client $$+ initRemote decrypt
         let remoteSettings = clientSettings port host
         C.putStrLn $ "connecting " <> host <> ":" <> C.pack (show port)
-        runTCPClient remoteSettings $ \appServer -> void $ concurrently
+        runTCPClient remoteSettings $ \appServer -> race_
             (clientSource $$+- handleLocal decrypt =$ appSink appServer)
             (appSource appServer $$ handleRemote encrypt =$ appSink client)

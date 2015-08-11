@@ -2,7 +2,7 @@
 
 import           Conduit ( Conduit, await, awaitForever, leftover, yield
                          , liftIO, (=$), ($$), ($$+), ($$++), ($$+-))
-import           Control.Concurrent.Async (concurrently)
+import           Control.Concurrent.Async (race_)
 import           Control.Monad (void)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -78,6 +78,6 @@ main = do
         runTCPClient remoteSettings $ \appServer -> do
             (clientSource', ()) <-
                 clientSource $$++ initRemote encrypt =$ appSink appServer
-            void $ concurrently
+            race_
                 (clientSource' $$+- handleLocal encrypt =$ appSink appServer)
                 (appSource appServer $$ handleRemote decrypt =$ appSink client)
