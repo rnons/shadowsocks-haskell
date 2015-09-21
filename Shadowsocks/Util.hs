@@ -7,6 +7,7 @@ module Shadowsocks.Util
   , parseConfigOptions
   , unpackRequest
   , packRequest
+  , packSockAddr
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
@@ -24,7 +25,7 @@ import           Data.IP ( fromHostAddress, fromHostAddress6
                          , toHostAddress, toHostAddress6)
 import           Data.Maybe (fromMaybe)
 import           GHC.Generics (Generic)
-import           Network.Socket (HostAddress, HostAddress6)
+import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
 import           Options.Applicative
 
 data Config = Config
@@ -138,3 +139,10 @@ packRequest addrType destAddr destPort =
         3 -> packDomain destAddr destPort
         4 -> packInet6 (toHostAddress6 $ read $ C.unpack destAddr) destPort
         _ -> error $ "Unknown address type: " <> show addrType
+
+packSockAddr :: SockAddr -> ByteString
+packSockAddr addr =
+    case addr of
+        SockAddrInet port host -> packInet host $ fromIntegral port
+        SockAddrInet6 port _ host _ -> packInet6 host $ fromIntegral port
+        _ -> error "unix socket is not supported"
