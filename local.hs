@@ -5,16 +5,11 @@ import           Conduit ( Conduit, await, leftover, yield, liftIO
 import           Control.Concurrent.Async (race_)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
-import           Data.Binary (decode)
-import           Data.Binary.Get (runGet, getWord16be, getWord32le)
-import           Data.Char (ord)
 import           Data.Conduit.Network ( runTCPServer, runTCPClient
                                       , serverSettings, clientSettings
                                       , appSource, appSink)
 import           Data.Monoid ((<>))
-import           Data.IP (fromHostAddress, fromHostAddress6)
 import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
 import           GHC.IO.Handle.FD (stdout)
 
@@ -26,29 +21,12 @@ initLocal = do
     await
     yield "\x05\x00"
     await >>= maybe (return ()) (\request -> do
-        let addrType = request `S.index` 3
-            request' = S.drop 4 request
-        (addr, payload, addrPort) <- case addrType of
-            1 -> do     -- IPv4
-                let (ip, rest) = S.splitAt 4 request'
-                    addr = C.pack $ show $ fromHostAddress $ runGet getWord32le
-                                                           $ L.fromStrict ip
-                return (addr, ip, S.take 2 rest)
-            3 -> do     -- domain name
-                let addrLen = ord $ C.head request'
-                    (domain, rest) = S.splitAt (addrLen + 1) request'
-                return (S.tail domain, domain, S.take 2 rest)
-            4 -> do     -- IPv6
-                let (ip, rest) = S.splitAt 16 request'
-                    addr = C.pack $ show $ fromHostAddress6 $ decode
-                                                            $ L.fromStrict ip
-                return (addr, ip, S.take 2 rest)
-            _ -> error $ C.unpack $ S.snoc "Unknown address type: " addrType
+        let (addrType, destAddr, destPort, _) = unpackRequest (S.drop 3 request)
+            packed = packRequest addrType destAddr destPort
         yield "\x05\x00\x00\x01\x00\x00\x00\x00\x10\x10"
-        let addrToSend = S.singleton addrType <> payload <> addrPort
-            port = runGet getWord16be $ L.fromStrict addrPort
-        liftIO $ C.putStrLn $ "connecting " <> addr <> ":" <> C.pack (show port)
-        leftover addrToSend)
+        liftIO $ C.putStrLn $ "connecting " <> destAddr
+                                            <> ":" <> C.pack (show destPort)
+        leftover packed)
 
 initRemote :: (ByteString -> IO ByteString)
            -> Conduit ByteString IO ByteString
