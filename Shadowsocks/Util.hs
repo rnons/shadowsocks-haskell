@@ -6,6 +6,7 @@ module Shadowsocks.Util
   , cryptConduit
   , parseConfigOptions
   , unpackRequest
+  , packRequest
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
@@ -13,14 +14,17 @@ import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
 import           Data.Binary (decode)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
+import           Data.Binary.Put (runPut, putWord16be, putWord32le)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as C
-import           Data.Char (ord)
-import           Data.IP (fromHostAddress, fromHostAddress6)
+import           Data.Char (chr, ord)
+import           Data.IP ( fromHostAddress, fromHostAddress6
+                         , toHostAddress, toHostAddress6)
 import           Data.Maybe (fromMaybe)
 import           GHC.Generics (Generic)
+import           Network.Socket (HostAddress, HostAddress6)
 import           Options.Applicative
 
 data Config = Config
@@ -106,3 +110,31 @@ unpackRequest request = (addrType, destAddr, destPort, payload)
             in  (addr, S.take 2 rest, S.drop 2 rest)
         _ -> error $ "Unknown address type: " <> show addrType
     destPort = fromIntegral $ runGet getWord16be $ L.fromStrict port
+
+packPort :: Int -> ByteString
+packPort = L.toStrict . runPut . putWord16be . fromIntegral
+
+packInet :: HostAddress -> Int -> ByteString
+packInet host port =
+    "\x01" <> L.toStrict (runPut $ putWord32le host)
+           <> packPort port
+
+packInet6 :: HostAddress6 -> Int -> ByteString
+packInet6 (h1, h2, h3, h4) port = 
+    "\x04" <> L.toStrict (runPut (putWord32le h1)
+               <> runPut (putWord32le h2)
+               <> runPut (putWord32le h3)
+               <> runPut (putWord32le h4))
+           <> packPort port
+
+packDomain :: ByteString -> Int -> ByteString
+packDomain host port =
+    "\x03" <> C.singleton (chr $ S.length host) <> host <> packPort port
+
+packRequest :: Int -> ByteString -> Int -> ByteString
+packRequest addrType destAddr destPort =
+    case addrType of
+        1 -> packInet (toHostAddress $ read $ C.unpack destAddr) destPort
+        3 -> packDomain destAddr destPort
+        4 -> packInet6 (toHostAddress6 $ read $ C.unpack destAddr) destPort
+        _ -> error $ "Unknown address type: " <> show addrType
