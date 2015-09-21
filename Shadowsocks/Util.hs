@@ -1,15 +1,24 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Shadowsocks.Util
   ( Config (..)
-  , parseConfigOptions
   , cryptConduit
+  , parseConfigOptions
+  , unpackRequest
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
 import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
+import           Data.Binary (decode)
+import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.ByteString (ByteString)
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Char8 as C
+import           Data.Char (ord)
+import           Data.IP (fromHostAddress, fromHostAddress6)
 import           Data.Maybe (fromMaybe)
 import           GHC.Generics (Generic)
 import           Options.Applicative
@@ -74,3 +83,26 @@ cryptConduit :: (ByteString -> IO ByteString)
 cryptConduit crypt = awaitForever $ \input -> do
     output <- liftIO $ crypt input
     yield output
+
+unpackRequest :: ByteString -> (Int, ByteString, Int, ByteString)
+unpackRequest request = (addrType, destAddr, destPort, payload)
+  where
+    addrType = fromIntegral $ S.head request
+    request' = S.drop 1 request
+    (destAddr, port, payload) = case addrType of
+        1 ->        -- IPv4
+            let (ip, rest) = S.splitAt 4 request'
+                addr = C.pack $ show $ fromHostAddress $ runGet getWord32le
+                                                       $ L.fromStrict ip
+            in  (addr, S.take 2 rest, S.drop 2 rest)
+        3 ->        -- domain name
+            let addrLen = ord $ C.head request'
+                (domain, rest) = S.splitAt (addrLen + 1) request'
+            in  (S.tail domain, S.take 2 rest, S.drop 2 rest)
+        4 ->        -- IPv6
+            let (ip, rest) = S.splitAt 16 request'
+                addr = C.pack $ show $ fromHostAddress6 $ decode
+                                                        $ L.fromStrict ip
+            in  (addr, S.take 2 rest, S.drop 2 rest)
+        _ -> error $ "Unknown address type: " <> show addrType
+    destPort = fromIntegral $ runGet getWord16be $ L.fromStrict port
