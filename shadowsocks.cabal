@@ -22,7 +22,10 @@ source-repository   head
 
 executable sslocal
   main-is:              local.hs
-  ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
+  if os(windows) && arch(x86_64)
+    ghc-options:          -Wall -fno-warn-unused-do-bind -O2
+  else
+    ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
   other-modules:        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
@@ -44,7 +47,10 @@ executable sslocal
 
 executable ssserver
   main-is:              server.hs
-  ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
+  if os(windows) && arch(x86_64)
+    ghc-options:          -Wall -fno-warn-unused-do-bind -O2
+  else
+    ghc-options:          -Wall -fno-warn-unused-do-bind -O2 -threaded
   other-modules:        Shadowsocks.Encrypt,
                         Shadowsocks.Util
   other-extensions:     OverloadedStrings, DeriveGeneric
