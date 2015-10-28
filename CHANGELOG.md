@@ -1,3 +1,7 @@
+## 1.20151028
+
+* Turn off `-threaded` option for Windows 64bit
+
 ## 1.20150921
 
 * UDP relay on server

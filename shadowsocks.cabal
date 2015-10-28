@@ -1,5 +1,5 @@
 name:                shadowsocks
-version:             1.20150921
+version:             1.20151028
 synopsis:            A fast SOCKS5 proxy that help you get through firewalls
 description:
     Shadowsocks implemented in Haskell. Original python version: <https://github.com/clowwindy/shadowsocks>
