@@ -21,7 +21,10 @@ initLocal = do
     await
     yield "\x05\x00"
     await >>= maybe (return ()) (\request -> do
-        let (addrType, destAddr, destPort, _) = unpackRequest (S.drop 3 request)
+        let (addrType, destAddr, destPort, _) =
+                either (error . show . UnknownAddrType)
+                       id
+                       (unpackRequest $ S.drop 3 request)
             packed = packRequest addrType destAddr destPort
         yield "\x05\x00\x00\x01\x00\x00\x00\x00\x10\x10"
         liftIO $ C.putStrLn $ "connecting " <> destAddr
