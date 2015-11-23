@@ -8,9 +8,12 @@ module Shadowsocks.Util
   , unpackRequest
   , packRequest
   , packSockAddr
+  , showSockAddr
+  , UnknownAddrType(..)
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
+import           Control.Exception (Exception)
 import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
 import           Data.Binary (decode)
@@ -47,6 +50,13 @@ data Options = Options
     , _method        :: Maybe String
     , _config        :: Maybe String
     } deriving (Show, Generic)
+
+type AddrType = Int
+
+data UnknownAddrType = UnknownAddrType AddrType deriving (Show, Generic)
+
+instance Exception UnknownAddrType
+
 
 nullConfig :: Config
 nullConfig = Config "" 0 0 "" 0 ""
@@ -89,28 +99,27 @@ cryptConduit crypt = awaitForever $ \input -> do
     output <- liftIO $ crypt input
     yield output
 
-unpackRequest :: ByteString -> (Int, ByteString, Int, ByteString)
-unpackRequest request = (addrType, destAddr, destPort, payload)
+unpackRequest :: ByteString -> Either AddrType (AddrType, ByteString, Int, ByteString)
+unpackRequest request = case addrType of
+    1 ->        -- IPv4
+        let (ip, rest) = S.splitAt 4 request'
+            addr = C.pack $ show $ fromHostAddress $ runGet getWord32le
+                                                   $ L.fromStrict ip
+        in  Right (addrType, addr, unpackPort rest, S.drop 2 rest)
+    3 ->        -- domain name
+        let addrLen = ord $ C.head request'
+            (domain, rest) = S.splitAt (addrLen + 1) request'
+        in  Right (addrType, S.tail domain, unpackPort rest, S.drop 2 rest)
+    4 ->        -- IPv6
+        let (ip, rest) = S.splitAt 16 request'
+            addr = C.pack $ show $ fromHostAddress6 $ decode
+                                                    $ L.fromStrict ip
+        in  Right (addrType, addr, unpackPort rest, S.drop 2 rest)
+    _ -> Left addrType
   where
     addrType = fromIntegral $ S.head request
     request' = S.drop 1 request
-    (destAddr, port, payload) = case addrType of
-        1 ->        -- IPv4
-            let (ip, rest) = S.splitAt 4 request'
-                addr = C.pack $ show $ fromHostAddress $ runGet getWord32le
-                                                       $ L.fromStrict ip
-            in  (addr, S.take 2 rest, S.drop 2 rest)
-        3 ->        -- domain name
-            let addrLen = ord $ C.head request'
-                (domain, rest) = S.splitAt (addrLen + 1) request'
-            in  (S.tail domain, S.take 2 rest, S.drop 2 rest)
-        4 ->        -- IPv6
-            let (ip, rest) = S.splitAt 16 request'
-                addr = C.pack $ show $ fromHostAddress6 $ decode
-                                                        $ L.fromStrict ip
-            in  (addr, S.take 2 rest, S.drop 2 rest)
-        _ -> error $ "Unknown address type: " <> show addrType
-    destPort = fromIntegral $ runGet getWord16be $ L.fromStrict port
+    unpackPort = fromIntegral . runGet getWord16be . L.fromStrict . S.take 2
 
 packPort :: Int -> ByteString
 packPort = L.toStrict . runPut . putWord16be . fromIntegral
@@ -145,4 +154,13 @@ packSockAddr addr =
     case addr of
         SockAddrInet port host -> packInet host $ fromIntegral port
         SockAddrInet6 port _ host _ -> packInet6 host $ fromIntegral port
+        _ -> error "unix socket is not supported"
+
+showSockAddr :: SockAddr -> String
+showSockAddr addr =
+    case addr of
+        SockAddrInet port host ->
+            show (fromHostAddress host) <> ":" <> show port
+        SockAddrInet6 port _ host _ ->
+            show (fromHostAddress6 host) <> ":" <> show port
         _ -> error "unix socket is not supported"
