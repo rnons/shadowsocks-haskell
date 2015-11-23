@@ -4,12 +4,14 @@ import           Conduit (Sink, await, liftIO, (=$), ($$), ($$+), ($$+-))
 import           Control.Applicative ((<$>))
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (race_)
+import           Control.Exception (throwIO)
 import           Control.Monad (forever)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
+import           Data.Conduit (catchC)
 import           Data.Conduit.Network ( runTCPServer, runTCPClient
                                       , serverSettings, clientSettings
-                                      , appSource, appSink)
+                                      , appSource, appSink, appSockAddr)
 import           Data.Monoid ((<>))
 import           Data.Streaming.Network(bindPortUDP)
 import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
@@ -25,8 +27,10 @@ initRemote :: (ByteString -> IO ByteString)
 initRemote decrypt = await >>=
     maybe (error "Invalid request") (\encRequest -> do
         request <- liftIO $ decrypt encRequest
-        let (_, destAddr, destPort, _) = unpackRequest request
-        return (destAddr, destPort))
+        case unpackRequest request of
+            Right (_, destAddr, destPort, _) -> return (destAddr, destPort)
+            Left addrType -> liftIO $ throwIO $ UnknownAddrType addrType
+        )
 
 main :: IO ()
 main = do
@@ -41,7 +45,10 @@ main = do
         forkIO $ do
             (encrypt, decrypt) <- getEncDec (method config) (password config)
             request <- decrypt encRequest
-            let (_, destAddr, destPort, payload) = unpackRequest request
+            let (_, destAddr, destPort, payload) =
+                    either (error . show . UnknownAddrType)
+                           id
+                           (unpackRequest request)
             C.putStrLn $ "udp " <> destAddr <> ":" <> C.pack (show destPort)
             remoteAddr <- head <$>
                 getAddrInfo Nothing (Just $ C.unpack destAddr)
@@ -58,7 +65,10 @@ main = do
     runTCPServer localSettings $ \client -> do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
         (clientSource, (host, port)) <-
-            appSource client $$+ initRemote decrypt
+            appSource client $$+
+                initRemote decrypt `catchC` \e ->
+                    error $ show (e :: UnknownAddrType) <> " from "
+                          <> showSockAddr (appSockAddr client)
         let remoteSettings = clientSettings port host
         C.putStrLn $ "connecting " <> host <> ":" <> C.pack (show port)
         runTCPClient remoteSettings $ \appServer -> race_
