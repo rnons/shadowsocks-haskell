@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Shadowsocks.Util
@@ -27,6 +28,7 @@ import           Data.Char (chr, ord)
 import           Data.IP ( fromHostAddress, fromHostAddress6
                          , toHostAddress, toHostAddress6)
 import           Data.Maybe (fromMaybe)
+import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
 import           Options.Applicative
@@ -53,7 +55,7 @@ data Options = Options
 
 type AddrType = Int
 
-data UnknownAddrType = UnknownAddrType AddrType deriving (Show, Generic)
+data UnknownAddrType = UnknownAddrType AddrType deriving (Show, Typeable)
 
 instance Exception UnknownAddrType
 
