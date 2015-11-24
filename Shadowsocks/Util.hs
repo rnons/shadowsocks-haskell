@@ -10,7 +10,7 @@ module Shadowsocks.Util
   , packRequest
   , packSockAddr
   , showSockAddr
-  , UnknownAddrType(..)
+  , SSException(..)
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
@@ -55,9 +55,11 @@ data Options = Options
 
 type AddrType = Int
 
-data UnknownAddrType = UnknownAddrType AddrType deriving (Show, Typeable)
+data SSException = UnknownAddrType AddrType 
+                 | NoRequestBody
+    deriving (Show, Typeable)
 
-instance Exception UnknownAddrType
+instance Exception SSException
 
 
 nullConfig :: Config

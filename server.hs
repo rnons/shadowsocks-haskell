@@ -25,7 +25,7 @@ import Shadowsocks.Util
 initRemote :: (ByteString -> IO ByteString)
            -> Sink ByteString IO (ByteString, Int)
 initRemote decrypt = await >>=
-    maybe (error "Invalid request") (\encRequest -> do
+    maybe (liftIO $ throwIO NoRequestBody) (\encRequest -> do
         request <- liftIO $ decrypt encRequest
         case unpackRequest request of
             Right (_, destAddr, destPort, _) -> return (destAddr, destPort)
@@ -67,7 +67,7 @@ main = do
         (clientSource, (host, port)) <-
             appSource client $$+
                 initRemote decrypt `catchC` \e ->
-                    error $ show (e :: UnknownAddrType) <> " from "
+                    error $ show (e :: SSException) <> " from "
                           <> showSockAddr (appSockAddr client)
         let remoteSettings = clientSettings port host
         C.putStrLn $ "connecting " <> host <> ":" <> C.pack (show port)
