@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Shadowsocks.Util
@@ -32,6 +33,9 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
 import           Options.Applicative
+import           System.Directory (doesFileExist)
+import           System.Exit (exitFailure)
+
 
 data Config = Config
     { server        :: String
@@ -88,6 +92,9 @@ parseConfigOptions = do
     o <- execParser $ info (helper <*> configOptions)
                       (fullDesc <> header "shadowsocks - a fast tunnel proxy")
     let configFile = fromMaybe "config.json" (_config o)
+    doesFileExist configFile >>= \case
+        True -> putStrLn "INFO: config file loaded"
+        False -> putStrLn "ERROR: config file not found" >> exitFailure
     mconfig <- readConfig configFile
     let c = fromMaybe nullConfig mconfig
     return $ c { server = fromMaybe (server c) (_server o)
