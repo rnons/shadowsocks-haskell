@@ -23,8 +23,8 @@ import           OpenSSL.EVP.Internal (cipherInitBS, cipherUpdateBS)
 import           OpenSSL.Random (randBytes)
 
 
-method_supported :: HM.HashMap String (Int, Int)
-method_supported = HM.fromList
+methodSupported :: HM.HashMap String (Int, Int)
+methodSupported = HM.fromList
     [ ("aes-128-cfb", (16, 16))
     , ("aes-192-cfb", (24, 16))
     , ("aes-256-cfb", (32, 16))
@@ -71,7 +71,7 @@ evpBytesToKey password keyLen ivLen =
 getSSLEncDec :: String -> ByteString
              -> IO (ByteString -> IO ByteString, ByteString -> IO ByteString)
 getSSLEncDec method password = do
-    let (m0, m1) = fromJust $ HM.lookup method method_supported
+    let (m0, m1) = fromJust $ HM.lookup method methodSupported
     random_iv <- withOpenSSL $ randBytes 32
     let cipher_iv = S.take m1 random_iv
     let (key, _) = evpBytesToKey password m0 m1
