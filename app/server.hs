@@ -36,10 +36,10 @@ main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
     config <- parseConfigOptions
-    let localSettings = serverSettings (server_port config) "*"
-    C.putStrLn $ "starting server at " <> C.pack (show $ server_port config)
+    let localSettings = serverSettings (serverPort config) "*"
+    C.putStrLn $ "starting server at " <> C.pack (show $ serverPort config)
 
-    udpSocket <- bindPortUDP (server_port config) "*"
+    udpSocket <- bindPortUDP (serverPort config) "*"
     forkIO $ forever $ do
         (encRequest, sourceAddr) <- recvFrom udpSocket 65535
         forkIO $ do

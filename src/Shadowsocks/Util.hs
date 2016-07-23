@@ -39,8 +39,8 @@ import           System.IO (hPutStrLn, stderr)
 
 data Config = Config
     { server        :: String
-    , server_port   :: Int
-    , local_port    :: Int
+    , serverPort    :: Int
+    , localPort     :: Int
     , password      :: String
     , timeout       :: Int
     , method        :: String
@@ -50,8 +50,8 @@ instance FromJSON Config
 
 data Options = Options
     { _server        :: Maybe String
-    , _server_port   :: Maybe Int
-    , _local_port    :: Maybe Int
+    , _serverPort    :: Maybe Int
+    , _localPort     :: Maybe Int
     , _password      :: Maybe String
     , _method        :: Maybe String
     , _config        :: Maybe String
@@ -59,7 +59,7 @@ data Options = Options
 
 type AddrType = Int
 
-data SSException = UnknownAddrType AddrType 
+data SSException = UnknownAddrType AddrType
                  | NoRequestBody
     deriving (Show, Typeable)
 
@@ -96,8 +96,8 @@ parseConfigOptions = do
         hPutStrLn stderr ("ERROR: Failed to load " <> show e) >> exitFailure
     let c = fromMaybe nullConfig mconfig
     return $ c { server = fromMaybe (server c) (_server o)
-               , server_port = fromMaybe (server_port c) (_server_port o)
-               , local_port = fromMaybe (local_port c) (_local_port o)
+               , serverPort = fromMaybe (serverPort c) (_serverPort o)
+               , localPort = fromMaybe (localPort c) (_localPort o)
                , password = fromMaybe (password c) (_password o)
                , method = fromMaybe (method c) (_method o)
                }

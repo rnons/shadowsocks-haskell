@@ -45,10 +45,10 @@ main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
     config <- parseConfigOptions
-    let localSettings = serverSettings (local_port config) "*"
-        remoteSettings = clientSettings (server_port config)
+    let localSettings = serverSettings (localPort config) "*"
+        remoteSettings = clientSettings (serverPort config)
                                         (C.pack $ server config)
-    C.putStrLn $ "starting local at " <> C.pack (show $ local_port config)
+    C.putStrLn $ "starting local at " <> C.pack (show $ localPort config)
     runTCPServer localSettings $ \client -> do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
         (clientSource, ()) <- appSource client $$+ initLocal =$ appSink client
