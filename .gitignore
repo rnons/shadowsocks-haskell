@@ -2,6 +2,7 @@
 *swp
 *.hi
 *.o
+.stack-work/
 benchmark/benchmark
 dist/
 tags
