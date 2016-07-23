@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Shadowsocks.Encrypt
   ( getEncDec
-  , iv_len
   ) where
 
 import           Control.Concurrent.MVar ( newEmptyMVar, isEmptyMVar
@@ -40,11 +39,6 @@ method_supported = HM.fromList
     , ("rc4", (16, 0))
     , ("seed-cfb", (16, 16))
     ]
-
-iv_len :: String -> Int
-iv_len method = m1
-  where
-    (_, m1) = method_supported HM.! method
 
 getTable :: ByteString -> [Word8]
 getTable key = do
