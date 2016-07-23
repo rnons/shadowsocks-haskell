@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Shadowsocks.Util
   ( Config (..)
@@ -15,7 +15,7 @@ module Shadowsocks.Util
   ) where
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
-import           Control.Exception (Exception)
+import           Control.Exception (Exception, IOException, catch)
 import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
 import           Data.Binary (decode)
@@ -33,8 +33,8 @@ import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
 import           Options.Applicative
-import           System.Directory (doesFileExist)
 import           System.Exit (exitFailure)
+import           System.IO (hPutStrLn, stderr)
 
 
 data Config = Config
@@ -92,10 +92,8 @@ parseConfigOptions = do
     o <- execParser $ info (helper <*> configOptions)
                       (fullDesc <> header "shadowsocks - a fast tunnel proxy")
     let configFile = fromMaybe "config.json" (_config o)
-    doesFileExist configFile >>= \case
-        True -> putStrLn "INFO: config file loaded"
-        False -> putStrLn "ERROR: config file not found" >> exitFailure
-    mconfig <- readConfig configFile
+    mconfig <- readConfig configFile `catch` \(e :: IOException) ->
+        hPutStrLn stderr ("ERROR: Failed to load " <> show e) >> exitFailure
     let c = fromMaybe nullConfig mconfig
     return $ c { server = fromMaybe (server c) (_server o)
                , server_port = fromMaybe (server_port c) (_server_port o)
