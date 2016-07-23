@@ -16,7 +16,6 @@ module Shadowsocks.Util
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
 import           Control.Exception (Exception, IOException, catch)
-import           Control.Monad (liftM)
 import           Data.Aeson (decode', FromJSON)
 import           Data.Binary (decode)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
@@ -70,7 +69,7 @@ nullConfig :: Config
 nullConfig = Config "" 0 0 "" 0 ""
 
 readConfig :: FilePath -> IO (Maybe Config)
-readConfig fp = liftM decode' $ L.readFile fp
+readConfig fp = decode' <$> L.readFile fp
 
 configOptions :: Parser Options
 configOptions = Options
