@@ -16,7 +16,7 @@ module Shadowsocks.Util
 
 import           Conduit (Conduit, awaitForever, yield, liftIO)
 import           Control.Exception (Exception, IOException, catch)
-import           Data.Aeson (decode', FromJSON)
+import           Data.Aeson (decode', FromJSON(..), Value(..), (.:))
 import           Data.Binary (decode)
 import           Data.Binary.Get (runGet, getWord16be, getWord32le)
 import           Data.Binary.Put (runPut, putWord16be, putWord32le)
@@ -45,7 +45,13 @@ data Config = Config
     , method        :: String
     } deriving (Show, Generic)
 
-instance FromJSON Config
+instance FromJSON Config where
+    parseJSON (Object v) = Config <$> v .: "server"
+                                  <*> v .: "server_port"
+                                  <*> v .: "local_port"
+                                  <*> v .: "password"
+                                  <*> v .: "timeout"
+                                  <*> v .: "method"
 
 data Options = Options
     { _server        :: Maybe String
