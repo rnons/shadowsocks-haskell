@@ -28,6 +28,7 @@ import           Data.Char (chr, ord)
 import           Data.IP ( fromHostAddress, fromHostAddress6
                          , toHostAddress, toHostAddress6)
 import           Data.Maybe (fromMaybe)
+import           Data.Monoid ((<>))
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
