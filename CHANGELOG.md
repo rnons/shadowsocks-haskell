@@ -1,3 +1,7 @@
+## 1.20180408
+
+* Update to conduit-1.3
+
 ## 1.20151028
 
 * Turn off `-threaded` option for Windows 64bit
