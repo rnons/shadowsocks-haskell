@@ -1,22 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Conduit ( Conduit, await, leftover, yield, liftIO
-                         , (=$), ($$), ($$+), ($$++), ($$+-))
+import           Conduit                  (ConduitT, await, connect, leftover,
+                                           liftIO, yield, ($$+), ($$++), ($$+-),
+                                           (.|))
 import           Control.Concurrent.Async (race_)
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as C
-import           Data.Conduit.Network ( runTCPServer, runTCPClient
-                                      , serverSettings, clientSettings
-                                      , appSource, appSink)
-import           Data.Monoid ((<>))
-import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
-import           GHC.IO.Handle.FD (stdout)
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as S
+import qualified Data.ByteString.Char8    as C
+import           Data.Conduit.Network     (appSink, appSource, clientSettings,
+                                           runTCPClient, runTCPServer,
+                                           serverSettings)
+import           Data.Monoid              ((<>))
+import           GHC.IO.Handle            (BufferMode (NoBuffering),
+                                           hSetBuffering)
+import           GHC.IO.Handle.FD         (stdout)
 
-import Shadowsocks.Encrypt (getEncDec)
-import Shadowsocks.Util
+import           Shadowsocks.Encrypt      (getEncDec)
+import           Shadowsocks.Util
 
-initLocal :: Conduit ByteString IO ByteString
+initLocal :: ConduitT ByteString ByteString IO ()
 initLocal = do
     await
     yield "\x05\x00"
@@ -32,7 +34,7 @@ initLocal = do
         leftover packed)
 
 initRemote :: (ByteString -> IO ByteString)
-           -> Conduit ByteString IO ByteString
+           -> ConduitT ByteString ByteString IO ()
 initRemote encrypt = do
     mAddrToSend <- await
     case mAddrToSend of
@@ -51,10 +53,11 @@ main = do
     C.putStrLn $ "starting local at " <> C.pack (show $ localPort config)
     runTCPServer localSettings $ \client -> do
         (encrypt, decrypt) <- getEncDec (method config) (password config)
-        (clientSource, ()) <- appSource client $$+ initLocal =$ appSink client
+        (clientSource, ()) <- appSource client $$+ initLocal .| appSink client
         runTCPClient remoteSettings $ \appServer -> do
             (clientSource', ()) <-
-                clientSource $$++ initRemote encrypt =$ appSink appServer
+                clientSource $$++ initRemote encrypt .| appSink appServer
             race_
-                (clientSource' $$+- cryptConduit encrypt =$ appSink appServer)
-                (appSource appServer $$ cryptConduit decrypt =$ appSink client)
+                (clientSource' $$+- cryptConduit encrypt .| appSink appServer)
+                (appSource appServer `Conduit.connect`
+                    (cryptConduit decrypt .| appSink client))

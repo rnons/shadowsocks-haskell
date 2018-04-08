@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Shadowsocks.Util
@@ -14,36 +14,38 @@ module Shadowsocks.Util
   , SSException(..)
   ) where
 
-import           Conduit (Conduit, awaitForever, yield, liftIO)
-import           Control.Exception (Exception, IOException, catch)
-import           Data.Aeson (decode', FromJSON(..), Value(..), (.:))
-import           Data.Binary (decode)
-import           Data.Binary.Get (runGet, getWord16be, getWord32le)
-import           Data.Binary.Put (runPut, putWord16be, putWord32le)
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
+import           Conduit               (ConduitT, awaitForever, liftIO, yield)
+import           Control.Exception     (Exception, IOException, catch)
+import           Data.Aeson            (FromJSON (..), Value (..), decode',
+                                        (.:))
+import           Data.Binary           (decode)
+import           Data.Binary.Get       (getWord16be, getWord32le, runGet)
+import           Data.Binary.Put       (putWord16be, putWord32le, runPut)
+import           Data.ByteString       (ByteString)
+import qualified Data.ByteString       as S
 import qualified Data.ByteString.Char8 as C
-import           Data.Char (chr, ord)
-import           Data.IP ( fromHostAddress, fromHostAddress6
-                         , toHostAddress, toHostAddress6)
-import           Data.Maybe (fromMaybe)
-import           Data.Monoid ((<>))
-import           Data.Typeable (Typeable)
-import           GHC.Generics (Generic)
-import           Network.Socket (HostAddress, HostAddress6, SockAddr(..))
+import qualified Data.ByteString.Lazy  as L
+import           Data.Char             (chr, ord)
+import           Data.IP               (fromHostAddress, fromHostAddress6,
+                                        toHostAddress, toHostAddress6)
+import           Data.Maybe            (fromMaybe)
+import           Data.Monoid           ((<>))
+import           Data.Typeable         (Typeable)
+import           GHC.Generics          (Generic)
+import           Network.Socket        (HostAddress, HostAddress6,
+                                        SockAddr (..))
 import           Options.Applicative
-import           System.Exit (exitFailure)
-import           System.IO (hPutStrLn, stderr)
+import           System.Exit           (exitFailure)
+import           System.IO             (hPutStrLn, stderr)
 
 
 data Config = Config
-    { server        :: String
-    , serverPort    :: Int
-    , localPort     :: Int
-    , password      :: String
-    , timeout       :: Int
-    , method        :: String
+    { server     :: String
+    , serverPort :: Int
+    , localPort  :: Int
+    , password   :: String
+    , timeout    :: Int
+    , method     :: String
     } deriving (Show, Generic)
 
 instance FromJSON Config where
@@ -55,12 +57,12 @@ instance FromJSON Config where
                                   <*> v .: "method"
 
 data Options = Options
-    { _server        :: Maybe String
-    , _serverPort    :: Maybe Int
-    , _localPort     :: Maybe Int
-    , _password      :: Maybe String
-    , _method        :: Maybe String
-    , _config        :: Maybe String
+    { _server     :: Maybe String
+    , _serverPort :: Maybe Int
+    , _localPort  :: Maybe Int
+    , _password   :: Maybe String
+    , _method     :: Maybe String
+    , _config     :: Maybe String
     } deriving (Show, Generic)
 
 type AddrType = Int
@@ -109,7 +111,7 @@ parseConfigOptions = do
                }
 
 cryptConduit :: (ByteString -> IO ByteString)
-             -> Conduit ByteString IO ByteString
+             -> ConduitT ByteString ByteString IO ()
 cryptConduit crypt = awaitForever $ \input -> do
     output <- liftIO $ crypt input
     yield output
@@ -145,7 +147,7 @@ packInet host port =
            <> packPort port
 
 packInet6 :: HostAddress6 -> Int -> ByteString
-packInet6 (h1, h2, h3, h4) port = 
+packInet6 (h1, h2, h3, h4) port =
     "\x04" <> L.toStrict (runPut (putWord32le h1)
                <> runPut (putWord32le h2)
                <> runPut (putWord32le h3)
@@ -167,9 +169,9 @@ packRequest addrType destAddr destPort =
 packSockAddr :: SockAddr -> ByteString
 packSockAddr addr =
     case addr of
-        SockAddrInet port host -> packInet host $ fromIntegral port
+        SockAddrInet port host      -> packInet host $ fromIntegral port
         SockAddrInet6 port _ host _ -> packInet6 host $ fromIntegral port
-        _ -> error "unix socket is not supported"
+        _                           -> error "unix socket is not supported"
 
 showSockAddr :: SockAddr -> String
 showSockAddr addr =

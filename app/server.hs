@@ -1,29 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Conduit (Sink, await, liftIO, (=$), ($$), ($$+), ($$+-))
-import           Control.Applicative ((<$>))
-import           Control.Concurrent (forkIO)
-import           Control.Concurrent.Async (race_)
-import           Control.Exception (throwIO)
-import           Control.Monad (forever)
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C
-import           Data.Conduit (catchC)
-import           Data.Conduit.Network ( runTCPServer, runTCPClient
-                                      , serverSettings, clientSettings
-                                      , appSource, appSink, appSockAddr)
-import           Data.Monoid ((<>))
-import           Data.Streaming.Network(bindPortUDP)
-import           GHC.IO.Handle (hSetBuffering, BufferMode(NoBuffering))
-import           GHC.IO.Handle.FD (stdout)
-import           Network.Socket hiding (recvFrom)
+import           Conduit                   (ConduitT, Void, await, connect,
+                                            liftIO, ($$+), ($$+-), (.|))
+import           Control.Applicative       ((<$>))
+import           Control.Concurrent        (forkIO)
+import           Control.Concurrent.Async  (race_)
+import           Control.Exception         (throwIO)
+import           Control.Monad             (forever)
+import           Data.ByteString           (ByteString)
+import qualified Data.ByteString.Char8     as C
+import           Data.Conduit              (catchC)
+import           Data.Conduit.Network      (appSink, appSockAddr, appSource,
+                                            clientSettings, runTCPClient,
+                                            runTCPServer, serverSettings)
+import           Data.Monoid               ((<>))
+import           Data.Streaming.Network    (bindPortUDP)
+import           GHC.IO.Handle             (BufferMode (NoBuffering),
+                                            hSetBuffering)
+import           GHC.IO.Handle.FD          (stdout)
+import           Network.Socket            hiding (recvFrom)
 import           Network.Socket.ByteString (recvFrom, sendAllTo)
 
-import Shadowsocks.Encrypt (getEncDec)
-import Shadowsocks.Util
+import           Shadowsocks.Encrypt       (getEncDec)
+import           Shadowsocks.Util
 
 initRemote :: (ByteString -> IO ByteString)
-           -> Sink ByteString IO (ByteString, Int)
+           -> ConduitT ByteString Void IO (ByteString, Int)
 initRemote decrypt = await >>=
     maybe (liftIO $ throwIO NoRequestBody) (\encRequest -> do
         request <- liftIO $ decrypt encRequest
@@ -72,5 +74,6 @@ main = do
         let remoteSettings = clientSettings port host
         C.putStrLn $ "connecting " <> host <> ":" <> C.pack (show port)
         runTCPClient remoteSettings $ \appServer -> race_
-            (clientSource $$+- cryptConduit decrypt =$ appSink appServer)
-            (appSource appServer $$ cryptConduit encrypt =$ appSink client)
+            (clientSource $$+- cryptConduit decrypt .| appSink appServer)
+            (appSource appServer `Conduit.connect`
+                (cryptConduit encrypt .| appSink client))
