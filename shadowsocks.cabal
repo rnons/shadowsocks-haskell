@@ -28,7 +28,7 @@ library
                         aeson >= 0.7,
                         binary >= 0.7,
                         bytestring >= 0.9,
-                        conduit-combinators >= 1.0,
+                        conduit >= 1.2,
                         containers >= 0.5,
                         cryptohash >= 0.11,
                         directory,
@@ -51,7 +51,7 @@ executable sslocal
                         shadowsocks,
                         async >= 2.0,
                         bytestring >= 0.9,
-                        conduit-combinators >= 1.0,
+                        conduit >= 1.2,
                         conduit-extra >= 1.1
   default-language:     Haskell2010
 
@@ -68,7 +68,6 @@ executable ssserver
                         async >= 2.0,
                         bytestring >= 0.9,
                         conduit >= 1.2,
-                        conduit-combinators >= 1.0,
                         conduit-extra >= 1.1,
                         network >= 2.6,
                         streaming-commons >= 0.1.11
