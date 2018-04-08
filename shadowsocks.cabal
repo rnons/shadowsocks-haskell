@@ -11,8 +11,8 @@ author:              rnons
 maintainer:          remotenonsense@gmail.com
 category:            Web
 build-type:          Simple
-cabal-version:       >= 1.10
-tested-with:         GHC == 7.10.2
+cabal-version:       >= 1.18
+tested-with:         GHC == 8.2.2
 data-files:          config.json
 extra-doc-files: CHANGELOG.md
 
@@ -43,9 +43,9 @@ executable sslocal
   hs-source-dirs:       app
   main-is:              local.hs
   if os(windows) && arch(x86_64)
-    ghc-options:        -Wall -fno-warn-unused-do-bind -O2
+    ghc-options:        -Wall -fno-warn-unused-do-bind
   else
-    ghc-options:        -Wall -fno-warn-unused-do-bind -O2 -threaded
+    ghc-options:        -Wall -fno-warn-unused-do-bind -threaded
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
                         shadowsocks,
@@ -59,9 +59,9 @@ executable ssserver
   hs-source-dirs:       app
   main-is:              server.hs
   if os(windows) && arch(x86_64)
-    ghc-options:        -Wall -fno-warn-unused-do-bind -O2
+    ghc-options:        -Wall -fno-warn-unused-do-bind
   else
-    ghc-options:        -Wall -fno-warn-unused-do-bind -O2 -threaded
+    ghc-options:        -Wall -fno-warn-unused-do-bind -threaded
   other-extensions:     OverloadedStrings, DeriveGeneric
   build-depends:        base == 4.*,
                         shadowsocks,
